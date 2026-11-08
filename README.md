@@ -1,102 +1,72 @@
-# Decky Nutstore
+# Decky Nutstore（坚果云存档同步插件）
 
-A [Decky](https://github.com/SteamDeckHomebrew/decky-loader) plugin that syncs your Steam Deck game saves to the cloud using [rclone](https://rclone.org/). This build is configured for **Nutstore (坚果云) WebDAV** only — a cloud service that works reliably from within China without a VPN.
+一个 [Decky](https://github.com/SteamDeckHomebrew/decky-loader) 插件，用 [rclone](https://rclone.org/) 把 Steam Deck 游戏存档同步到云端。本版本仅支持 **坚果云（Nutstore）WebDAV**——国内无需 VPN 即可稳定使用。
 
-Support: open an issue on this repository, or join the [SteamDeckHomebrew Discord](https://deckbrew.xyz/discord).
+- 问题反馈：在本仓库提交 Issue，或加入 [SteamDeckHomebrew Discord](https://deckbrew.xyz/discord)。
+- 插件界面：跟随 Steam 语言设置，选「简体中文」即为中文界面。
 
-## Troubleshooting
+## 功能特性
 
-If a sync fails, the logs will usually tell you everything you need. You can find them inside the plugin panel, or at `~/homebrew/logs/decky-nutstore/`. You may be asked to provide them when asking for help.
+- 将游戏存档（或任意文件/文件夹）备份到坚果云 WebDAV。
+- 游戏关闭后自动备份。
+- 文件数预估，避免误选整个 Steam Deck。
+- 包含/排除规则的高级过滤。
+- 可选云端子目录。
+- 游戏启动/退出自动同步（启动下载、退出上传）。
+- 插件面板内直接查看同步日志。
 
-To see more detailed logs, change `log_level` in `~/homebrew/settings/decky-nutstore/plugin.properties` to `DEBUG`. Remember to change it back to `INFO` (or higher) when you are done.
+> **注意**：常规复制模式下，本地删除不会删除云端文件（防误删，设计如此）。
 
-## Features
+## 安装
 
-* Back up game saves (or any files/folders) to Nutstore (坚果云) WebDAV.
-* Automatic backup after a game is closed.
-* File counter that estimates how many files a sync path would pick up — prevents accidentally backing up the entire Steam Deck.
-* Advanced filtering with includes and excludes.
-* Optional destination subfolder on Nutstore.
-* Automatic sync on game startup/exit (download on launch, upload on exit).
-* Easy access to sync logs from the plugin panel.
+从 [Releases 页面](https://github.com/jmac1990cn/decky-nutstore/releases/) 下载最新 `decky-nutstore.zip`，通过 Decky 内置安装器安装：`Decky → 设置 → 开发者 → 从 ZIP 安装插件`。也可直接 clone 本仓库、用解压后的文件夹同样方式安装。
 
-**NOTE!** This plugin **does not** delete files from the cloud even if they are deleted locally (in regular copy mode). This is intentional, to protect against accidents.
+## 使用
 
-## Installation
+### 1. 配置坚果云（认证）
 
-Download the latest release from the [releases page](https://github.com/jmac1990cn/decky-nutstore/releases/) and install it via the built-in Decky installer (`Decky` → `Settings` → `Developer` → `Install Plugin from ZIP`). Or clone / download this repository and install the extracted folder the same way.
+进入 `配置 → 云端服务商`，点击 **坚果云（WebDAV）** 按钮，填入：
 
-## Usage
+- **WebDAV 地址**：`https://dav.jianguoyun.com/dav/`（已预填，一般无需改动）
+- **坚果云账号（邮箱）**
+- **应用专用密码**（不是登录密码；在坚果云网页 → 安全 → 第三方应用授权 中生成）
 
-### Authentication (Nutstore / 坚果云)
+确认后插件会自动写入 rclone 配置，顶部显示「当前使用：坚果云 WebDAV」。
 
-To sync files you must first configure Nutstore WebDAV as the cloud backend.
+> 大屏输入不便时，可在桌面模式运行 `defaults/quickstart/nutstore_webdav.sh`（`bash ./defaults/quickstart/nutstore_webdav.sh`）。
 
-Navigate to `Configuration → Cloud Provider` and click the **Nutstore (WebDAV)** button. A window opens where you enter:
+### 2. 选择同步路径
 
-- **WebDAV URL**: `https://dav.jianguoyun.com/dav/` (pre-filled, usually no need to change)
-- **Nutstore account (email)**
-- **App-specific password** (NOT your login password — generate one at Nutstore web → Security → Third-party app authorization)
+进入 `配置 → 同步路径`，点击 **添加到同步**，选择文件或文件夹。选择后显示预估文件数；**若超过 9000，很可能是选错路径**（单个游戏存档通常不足 10 个）。
 
-After clicking OK the plugin writes the rclone config automatically, and `Currently using: Nutstore WebDAV` appears at the top.
+- **云端布局**：每个文件夹以其原名称上传到坚果云根目录，插件记住其 Steam Deck 路径，逆向同步时原样恢复。「坚果云存放目录」为可选子目录，**留空即直接传到根目录**（推荐，方便在电脑端查看）。
+- **两个同步按钮**：
+  - **SD → 云端（上传存档）**：本地存档推送到坚果云。
+  - **云端 → SD（下载存档）**：从坚果云恢复到 Steam Deck；未上传过的文件夹自动跳过。
+- **游戏启动/退出自动同步**逻辑同上：启动先下载最新云存档，退出再上传本地存档。
 
-If Big Picture input is inconvenient, a desktop-mode fallback script is provided at `defaults/quickstart/nutstore_webdav.sh` (run `bash ./defaults/quickstart/nutstore_webdav.sh` from the plugin install directory).
+> **安全提示**：rclone 在 Steam Deck 上以「混淆」而非强加密方式保存 WebDAV 密码，请务必使用坚果云**应用专用密码**，不要用主账号密码。
 
-### Paths
+## 高级配置（`plugin.properties`）
 
-The second step is to choose what to sync.
+文件位置：`~/homebrew/settings/decky-nutstore/plugin.properties`
 
-Navigate to `Configuration → Sync Paths` and click **Add to Sync**. You can sync individual files or folders. After selecting a path, an estimate of the number of files to be synced is shown. If the count is greater than 9000, be cautious — you may have selected the wrong path (a game's save files are usually fewer than 10).
+- `log_level`：日志级别，调试时设 `DEBUG`（默认 `INFO`）。
+- `destination_directory`：可选坚果云子目录，留空同步到根目录。
+- `additional_sync_args`：传给每次 rclone copy 的额外参数。
+- `sync_root`：同步路径必须位于此绝对路径前缀下（默认 `/`，须以 `/` 结尾）。
 
-**IMPORTANT!** The plugin follows symlinks inside sync paths. If a symlink is created, its target also gets backed up. This shows up in the estimated file count.
-
-**Flat layout on Nutstore.** Each selected folder is uploaded to the Nutstore root using its own folder name (e.g. `The Elder Scrolls V Skyrim` → `坚果云根目录/The Elder Scrolls V Skyrim`). The plugin remembers each folder's Steam Deck path, so a reverse sync restores the data to exactly the same location. The `坚果云存放目录` field is an *optional* subfolder — **leave it empty to upload straight to the Nutstore root** (recommended for easy access on a PC).
-
-**Two sync directions.** The sync section has two separate buttons instead of a single sync:
-
-- **SD → 云端（上传存档）** — copies your Steam Deck saves *to* Nutstore (`rclone copy` local → cloud). Use this after playing, or any time you want to push local changes to the cloud.
-- **云端 → SD（下载存档）** — copies from Nutstore *back to* your Steam Deck (`rclone copy` cloud → local), restoring each folder to its remembered path. If a folder was never uploaded, it is skipped automatically.
-
-Automatic sync on game start/stop follows the same logic: on launch it **downloads** the latest cloud saves before you play; on exit it **uploads** your local saves.
-
-> Security: rclone stores the WebDAV password obfuscated (not strongly encrypted) on the Steam Deck filesystem. Use a dedicated Nutstore app-specific password rather than your main account password.
-
-## 简体中文界面
-
-The plugin ships with a translation system that follows Steam's language setting. Simplified Chinese (`schinese`) and Traditional Chinese (`tchinese`) are mapped to the correct translation files; just set Steam's language to 简体中文 and the UI shows Simplified Chinese. Translations live in `assets/languages/zh-CN.json` (Simplified) and `zh.json` (Traditional).
-
-## Usage (Advanced)
-
-This build only supports Nutstore (坚果云) WebDAV. To configure it manually in desktop mode, run `bash ./defaults/quickstart/nutstore_webdav.sh` from the plugin install directory and follow the interactive prompts (WebDAV URL, Nutstore email, app-specific password). The script creates an rclone remote named `backend`, which is what the plugin uses for all sync operations.
-
-<u>**SECURITY WARNING: rclone saves the WebDAV password obfuscated (not strongly encrypted) on the Steam Deck filesystem**</u>. Use a dedicated Nutstore app-specific password rather than your main account password.
-
-### Advanced configuration (`plugin.properties`)
-
-The file `~/homebrew/settings/decky-nutstore/plugin.properties` holds a few tunables:
-
-- `log_level` — set to `DEBUG` for verbose logs (default `INFO`).
-- `destination_directory` — an optional Nutstore subfolder. Leave empty to sync to the Nutstore root.
-- `additional_sync_args` — extra arguments passed to every rclone copy (e.g. provider-specific flags).
-- `sync_root` — the absolute path prefix sync paths must live under (default `/`). Must be absolute and end with `/`.
-
-### Custom sync root
-
-By default the sync root is `/` for simplicity. If that causes issues, you can change it to another absolute path (ending in `/`) and symlink folders into it. Any previously defined paths must be adjusted accordingly.
-
-## Building from source
+## 从源码构建
 
 ```bash
 pnpm install
-pnpm build        # outputs dist/
+pnpm build        # 输出到 dist/
 ```
 
-Then install the plugin folder (which contains `dist/`, `bin/`, `py_modules/`, `main.py`, `plugin.json`, …) via the Decky developer installer. The `bin/rclone` binary and `bin/rcloneLauncher` script are bundled so the plugin works out of the box.
+把含 `dist/`、`bin/`、`py_modules/`、`main.py`、`plugin.json` 的插件文件夹通过 Decky 开发者安装器安装。`bin/rclone` 与 `bin/rcloneLauncher` 已内置，开箱即用。
 
-To rebuild the bundled rclone engine (optional), see `backend/Dockerfile` and `backend/entrypoint.sh`.
+## 致谢
 
-## Acknowledgments
-
-* [rclone](https://rclone.org/) — the sync engine that makes this plugin possible.
-* [SteamDeckHomebrew](https://github.com/SteamDeckHomebrew) — Decky loader and development assistance.
-* This plugin is a Nutstore-focused fork of [decky-cloud-save](https://github.com/GedasFX/decky-cloud-save) by GedasFX.
+- [rclone](https://rclone.org/)：同步引擎。
+- [SteamDeckHomebrew](https://github.com/SteamDeckHomebrew)：Decky 加载器与开发支持。
+- 本插件是 GedasFX 的 [decky-cloud-save](https://github.com/GedasFX/decky-cloud-save) 的坚果云定制版。
