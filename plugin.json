@@ -1,0 +1,10 @@
+{
+  "name": "decky-nutstore",
+  "author": "decky-nutstore",
+  "flags": [],
+  "publish": {
+    "tags": ["backup", "cloud", "rclone", "nutstore", "webdav", "steam-deck"],
+    "description": "Sync Steam Deck game saves to Nutstore (坚果云) WebDAV — a China-friendly cloud backup plugin for Decky.",
+    "image": "https://opengraph.githubassets.com/0/jmac1990cn/decky-nutstore"
+  }
+}

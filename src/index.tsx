@@ -1,0 +1,86 @@
+import { definePlugin, ServerAPI, staticClasses, LifetimeNotification } from "decky-frontend-lib";
+import { Toast } from "./helpers/toast";
+import { Logger } from "./helpers/logger";
+import { ApiClient } from "./helpers/apiClient";
+import { ApplicationState } from "./helpers/state";
+import { Content } from "./pages/RenderDCSMenu";
+import { Translator } from "./helpers/translator";
+import { Storage } from "./helpers/storage";
+import { Backend } from "./helpers/backend";
+import { FaSave } from "react-icons/fa";
+import ConfigurePathsPage from "./pages/ConfigurePathsPage";
+import ConfigureBackendPage from "./pages/ConfigureBackendPage";
+import RenderSyncLogPage from "./pages/RenderSyncLogPage";
+import RenderPluginLogPage from "./pages/RenderPluginLogPage";
+
+declare const appStore: any;
+
+export default definePlugin((serverApi: ServerAPI) => {
+  Storage.clearAllSessionStorage();
+  ApplicationState.initialize(serverApi).then(async () => {
+    Backend.initialize(serverApi);
+    await Logger.initialize();
+    await Translator.initialize();
+  });
+
+  serverApi.routerHook.addRoute("/dcs-configure-paths", () => <ConfigurePathsPage serverApi={serverApi} />, { exact: true });
+  serverApi.routerHook.addRoute("/dcs-configure-backend", () => <ConfigureBackendPage serverApi={serverApi} />, { exact: true });
+  serverApi.routerHook.addRoute("/dcs-sync-logs", () => <RenderSyncLogPage />, { exact: true });
+  serverApi.routerHook.addRoute("/dcs-plugin-logs", () => <RenderPluginLogPage />, { exact: true });
+
+  const { unregister: removeGameExecutionListener } = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((e: LifetimeNotification) => {
+    const currentState = ApplicationState.getAppState().currentState;
+    if (currentState.sync_on_game_exit === "true") {
+      const gameInfo = appStore.GetAppOverviewByGameID(e.unAppID);
+      Logger.info((e.bRunning ? "Starting" : "Stopping") + " game '" + gameInfo.display_name + "' (" + e.unAppID + ")");
+
+      ApplicationState.setAppState("playing", String(e.bRunning));
+
+      if (shouldSync(gameInfo)) {
+        syncGame(e);
+      }
+    } else {
+      Logger.info("No futher actions");
+    }
+  });
+
+  return {
+    title: <div className={staticClasses.Title}>Decky Nutstore</div>,
+    content: <Content />,
+    icon: <FaSave />,
+    onDismount() {
+      removeGameExecutionListener();
+      Storage.clearAllSessionStorage();
+      serverApi.routerHook.removeRoute("/dcs-configure-paths");
+      serverApi.routerHook.removeRoute("/dcs-configure-backend");
+      serverApi.routerHook.removeRoute("/dcs-sync-logs");
+      serverApi.routerHook.removeRoute("/dcs-plugin-logs");
+    },
+  };
+});
+
+function syncGame(e: LifetimeNotification) {
+  const currentState = ApplicationState.getAppState().currentState;
+  let toast = currentState.toast_auto_sync === "true";
+  if (e.bRunning) {
+    // Game is starting: pull the latest saves from the cloud first.
+    if (toast) {
+      Toast.toast(Translator.translate("synchronizing.savedata"), 2000);
+    }
+    ApiClient.syncOnLaunch(toast, e.nInstanceID); // nInstanceID is Linux Process PID
+  } else {
+    // Game exited: push local saves to the cloud.
+    ApiClient.syncOnEnd(toast);
+  }
+}
+
+function shouldSync(gameInfo: any) {
+  if (gameInfo?.store_category.includes(23)) {
+    // 23 - Steam Cloud (skip games that already sync via Steam Cloud)
+    Logger.info("Steam game with Steam Cloud, skipping");
+    return false;
+  } else {
+    Logger.info("Non Steam game, or game without Steam Cloud, proceeding");
+    return true;
+  }
+}
