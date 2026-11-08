@@ -1,0 +1,45 @@
+name: Build and attach plugin ZIP
+
+# 每次在 GitHub 上发布（publish）一个 release，自动把插件打成可安装的 ZIP 并挂到该 release。
+# 无需手动打包：发布后约 1 分钟内会出现 decky-nutstore.zip 附件。
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package plugin into decky-nutstore.zip
+        run: |
+          python3 - <<'PY'
+          import zipfile, os
+          src = "."
+          out = "decky-nutstore.zip"
+          exclude_dirs = {".git", "__pycache__", "node_modules", ".github"}
+          exclude_files = {".DS_Store", "Thumbs.db", "decky-nutstore.zip"}
+          with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+              for root, dirs, files in os.walk(src):
+                  dirs[:] = [d for d in dirs if d not in exclude_dirs]
+                  for f in files:
+                      if f in exclude_files:
+                          continue
+                      full = os.path.join(root, f)
+                      rel = os.path.relpath(full, src).replace(os.sep, "/")
+                      if rel in (".", ""):
+                          continue
+                      z.write(full, "decky-nutstore/" + rel)
+          n = len(zipfile.ZipFile(out).namelist())
+          print("Created", out, "with", n, "entries")
+          PY
+
+      - name: Upload ZIP to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" decky-nutstore.zip --clobber

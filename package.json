@@ -1,6 +1,6 @@
 {
   "name": "decky-nutstore",
-  "version": "1.4.2",
+  "version": "1.0.0",
   "description": "Sync Steam Deck game saves to Nutstore (坚果云) WebDAV — a China-friendly cloud backup plugin for Decky.",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
