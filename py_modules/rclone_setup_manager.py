@@ -226,14 +226,29 @@ class RcloneSetupManager:
 
     def _steam_steamapps_dirs(self):
         """
-        Returns every known Steam ``steamapps`` directory (native + Flatpak).
+        Returns every known Steam ``steamapps`` directory (native + Flatpak),
+        de-duplicated by real path so a symlinked native/Flatpak setup does not
+        scan the same ``compatdata`` twice.
         """
         home = Path.home()
         candidates = [
             home / ".steam" / "steam" / "steamapps",
             home / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps",
         ]
-        return [p for p in candidates if p.is_dir()]
+        seen = set()
+        result = []
+        for p in candidates:
+            if not p.is_dir():
+                continue
+            try:
+                rp = str(p.resolve())
+            except Exception:
+                rp = str(p)
+            if rp in seen:
+                continue
+            seen.add(rp)
+            result.append(p)
+        return result
 
     def _shortcut_vdf_paths(self, steamapps: Path):
         """
@@ -244,8 +259,9 @@ class RcloneSetupManager:
         also store one at ``steamapps/shortcuts.vdf``. We return all that exist.
         """
         found = []
+        steam_root = steamapps.parent
         # Per-user shortcuts (the real home of non-Steam games).
-        userdata = steamapps.parent / "userdata"
+        userdata = steam_root / "userdata"
         if userdata.is_dir():
             for sid in userdata.iterdir():
                 if not sid.is_dir() or not sid.name.isdigit():
@@ -253,22 +269,34 @@ class RcloneSetupManager:
                 vdf = sid / "config" / "shortcuts.vdf"
                 if vdf.is_file():
                     found.append(vdf)
-        # Fallback copy next to steamapps.
-        vdf = steamapps / "shortcuts.vdf"
-        if vdf.is_file():
-            found.append(vdf)
-        return found
+        # Fallback copies: next to steamapps, or directly under the steam root.
+        for vdf in (steamapps / "shortcuts.vdf", steam_root / "shortcuts.vdf"):
+            if vdf.is_file():
+                found.append(vdf)
+        # De-duplicate while preserving order.
+        seen = set()
+        unique = []
+        for v in found:
+            if v not in seen:
+                seen.add(v)
+                unique.append(v)
+        return unique
 
     def _parse_shortcuts_vdf(self, path: Path) -> dict:
         """
         Parses Steam's binary ``shortcuts.vdf`` and returns a mapping of
         ``{appid (str): AppName}`` for every non-Steam shortcut.
 
-        Crucially, the ``compatdata`` folder name for a non-Steam game is NOT the
-        ``appid`` stored inside the vdf. Steam *computes* it as
-        ``crc32(Exe + "\\0" + AppName) | 0x80000000`` (the same algorithm
-        Protontricks uses). So we read each shortcut's ``Exe`` and ``AppName``
-        and derive the on-disk appid ourselves.
+        The ``compatdata`` folder name for a non-Steam game is NOT the ``appid``
+        stored inside the vdf. Steam *computes* it as
+        ``crc32(<raw bytes>) | 0x80000000`` where ``<raw bytes>`` is the exact
+        on-disk concatenation of the shortcut's Executable path and its display
+        name, separated by a single NUL byte. We therefore hash the RAW bytes as
+        they are stored (string = UTF-8, wstring = UTF-16-LE) so we match Steam
+        bit-for-bit — decoding and re-encoding would corrupt non-ASCII / UTF-16
+        values. We try both ``Exe\\0AppName`` and ``AppName\\0Exe`` orderings
+        because different Steam versions differ here, and we also honour an
+        explicit ``appid`` field when present.
 
         The binary VDF format used here:
           - ``0x00`` marks the start of a sub-node (name follows, children until 0x08)
@@ -284,15 +312,18 @@ class RcloneSetupManager:
         result: dict = {}
         n = len(data)
 
-        def read_cstr(pos: int):
-            end = data.index(b"\x00", pos)
-            return data[pos:end].decode("utf-8", "replace"), end + 1
+        def read_bytes_until_null(pos: int):
+            try:
+                end = data.index(b"\x00", pos)
+            except ValueError:
+                end = n
+            return data[pos:end], end + 1
 
-        def read_wstr(pos: int):
+        def read_wbytes_until_double_null(pos: int):
             i = pos
             while i + 1 < n and not (data[i] == 0 and data[i + 1] == 0):
                 i += 2
-            return data[pos:i].decode("utf-16-le", "replace"), i + 2
+            return data[pos:i], i + 2
 
         def recurse(pos: int):
             node: dict = {}
@@ -301,47 +332,72 @@ class RcloneSetupManager:
                 pos += 1
                 if typ == 0x08:  # end of node
                     break
-                name, pos = read_cstr(pos)
-                if typ == 0x01:  # string
-                    val, pos = read_cstr(pos)
-                    node[name] = val
+                # A node name is always a plain (0x01) string; keep its raw bytes.
+                name_raw, pos = read_bytes_until_null(pos)
+                name = name_raw.decode("utf-8", "replace")
+                if typ == 0x01:  # string -> keep raw UTF-8 bytes
+                    val, pos = read_bytes_until_null(pos)
+                    node[name] = ("str", val)
                 elif typ == 0x02:  # int32
                     val = int.from_bytes(data[pos:pos + 4], "little")
                     pos += 4
-                    node[name] = val
-                elif typ == 0x05:  # wstring (UTF-16-LE)
-                    val, pos = read_wstr(pos)
-                    node[name] = val
+                    node[name] = ("int", val)
+                elif typ == 0x05:  # wstring -> keep raw UTF-16-LE bytes
+                    val, pos = read_wbytes_until_double_null(pos)
+                    node[name] = ("wstr", val)
                 elif typ == 0x07:  # uint64
                     val = int.from_bytes(data[pos:pos + 8], "little")
                     pos += 8
-                    node[name] = val
+                    node[name] = ("int", val)
                 else:  # 0x00 or unknown -> sub-node
                     sub, pos = recurse(pos)
-                    node[name] = sub
+                    node[name] = ("node", sub)
             return node, pos
 
         try:
             root, _ = recurse(0)
         except Exception:
+            # Malformed tail: return whatever we parsed so far rather than nothing.
             return result
+
+        def decode_entry(entry):
+            if not isinstance(entry, tuple):
+                return None
+            kind, raw = entry
+            try:
+                return raw.decode("utf-16-le" if kind == "wstr" else "utf-8", "replace")
+            except Exception:
+                return None
 
         def extract(node):
             if isinstance(node, dict):
-                app_name = node.get("AppName")
                 exe = node.get("Exe")
-                # A real shortcut always has both Exe and AppName; the computed
-                # appid is what Steam uses as the compatdata folder name.
-                if app_name and exe:
-                    try:
-                        computed = (
-                            zlib.crc32((exe + "\x00" + app_name).encode("utf-8")) | 0x80000000
-                        )
-                        result[str(computed)] = app_name
-                    except Exception:
-                        pass
+                app_name = node.get("AppName")
+                # A real shortcut always carries both Exe and AppName. Hash their
+                # raw bytes so we reproduce Steam's computed appid exactly.
+                if isinstance(exe, tuple) and isinstance(app_name, tuple):
+                    exe_bytes = exe[1]
+                    name_bytes = app_name[1]
+                    display = decode_entry(app_name)
+                    if display:
+                        for combo in (
+                            exe_bytes + b"\x00" + name_bytes,
+                            name_bytes + b"\x00" + exe_bytes,
+                        ):
+                            try:
+                                aid = zlib.crc32(combo) | 0x80000000
+                                result.setdefault(str(aid), display)
+                            except Exception:
+                                pass
+                # Some flavours store an explicit appid; honour it directly.
+                appid = node.get("appid")
+                if isinstance(appid, tuple) and appid[0] == "int" and isinstance(app_name, tuple):
+                    d = decode_entry(app_name)
+                    if d:
+                        result.setdefault(str(int(appid[1])), d)
                 for v in node.values():
-                    extract(v)
+                    if isinstance(v, tuple) and v[0] == "node":
+                        extract(v[1])
 
         extract(root)
         return result
