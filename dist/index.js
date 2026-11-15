@@ -303,6 +303,8 @@
     var file$6 = "File";
     var folder$6 = "Folder";
     var back$2 = "Back";
+    var select$2 = "Select";
+    var browse$2 = "Select Save Folder";
     var includes$6 = "Includes";
     var excludes$6 = "Excludes";
     var english = {
@@ -332,11 +334,17 @@
     	"add.to.sync": "Add Path to Sync",
     	"exclude.from.sync": "Exclude Path from Sync",
     	"steam.saves": "Steam Game Saves",
-    	"steam.save.select": "Pick a game to add its Proton save folder to sync.",
+    	"steam.save.select": "Pick a game, then browse into it and select the exact save folder (no whole-folder upload).",
     	"loading.games": "Loading games...",
+    	"loading.dir": "Loading folder...",
     	"no.compatdata": "No game prefixes found in compatdata.",
+    	"empty.folder": "Empty folder",
     	back: back$2,
-    	"added.game": "Added {{name}} to {{file}}",
+    	select: select$2,
+    	browse: browse$2,
+    	"up.dir": "Up",
+    	"select.this.folder": "Select this folder",
+    	"added.path": "Added to {{file}}",
     	"confirm.remove": "Confirm Remove",
     	"removing.path": "Removing Path {{path}} Proceed?",
     	"includes.vs.exclude": "Includes vs Excludes",
@@ -611,6 +619,8 @@
     var file$1 = "檔案";
     var folder$1 = "資料夾";
     var back$1 = "返回";
+    var select$1 = "選擇";
+    var browse$1 = "選擇存檔目錄";
     var includes$1 = "包含";
     var excludes$1 = "排除";
     var chinese = {
@@ -640,11 +650,17 @@
     	"add.to.sync": "將路徑添加到同步",
     	"exclude.from.sync": "將路徑從同步中排除",
     	"steam.saves": "Steam 遊戲存檔",
-    	"steam.save.select": "選擇一個遊戲，將其 Proton 存檔目錄加入同步。",
+    	"steam.save.select": "選擇一個遊戲，進入後挑選具體的存檔目錄（不再整資料夾上傳）。",
     	"loading.games": "正在載入遊戲清單……",
+    	"loading.dir": "正在載入目錄……",
     	"no.compatdata": "在 compatdata 中未找到遊戲前綴。",
+    	"empty.folder": "空資料夾",
     	back: back$1,
-    	"added.game": "已將 {{name}} 加入{{file}}",
+    	select: select$1,
+    	browse: browse$1,
+    	"up.dir": "返回上級",
+    	"select.this.folder": "選擇此資料夾",
+    	"added.path": "已加入{{file}}",
     	"confirm.remove": "確認移除",
     	"removing.path": "移除路徑 {{path}}。繼續？",
     	"includes.vs.exclude": "包含或排除",
@@ -691,6 +707,8 @@
     var file = "文件";
     var folder = "文件夹";
     var back = "返回";
+    var select = "选择";
+    var browse = "选择存档目录";
     var includes = "包含";
     var excludes = "排除";
     var chineseSimplified = {
@@ -720,11 +738,17 @@
     	"add.to.sync": "添加到同步",
     	"exclude.from.sync": "从同步中排除",
     	"steam.saves": "Steam 游戏存档",
-    	"steam.save.select": "选择一个游戏，将其 Proton 存档目录加入同步。",
+    	"steam.save.select": "选择一个游戏，进入后挑选具体的存档目录（不再整文件夹上传）。",
     	"loading.games": "正在加载游戏列表……",
+    	"loading.dir": "正在加载目录……",
     	"no.compatdata": "在 compatdata 中未找到游戏前缀。",
+    	"empty.folder": "空文件夹",
     	back: back,
-    	"added.game": "已将 {{name}} 加入{{file}}",
+    	select: select,
+    	browse: browse,
+    	"up.dir": "返回上级",
+    	"select.this.folder": "选择此文件夹",
+    	"added.path": "已加入{{file}}",
     	"confirm.remove": "确认移除",
     	"removing.path": "正在移除路径 {{path}}，是否继续？",
     	"includes.vs.exclude": "包含与排除",
@@ -1509,9 +1533,52 @@
     }
 
     /**
+     * A tap-friendly list row with no bottom separator (replaces the default
+     * decky "white bar"). The selectable action is surfaced as a highlighted pill
+     * on the right side.
+     */
+    function SelectableRow({ title, subtitle, right, onClick, }) {
+        return (window.SP_REACT.createElement("div", { onClick: onClick, style: {
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                marginBottom: "6px",
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                cursor: "pointer",
+            } },
+            window.SP_REACT.createElement("div", { style: { display: "flex", flexDirection: "column", minWidth: 0, marginRight: "12px" } },
+                window.SP_REACT.createElement("span", { style: {
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    } }, title),
+                subtitle && (window.SP_REACT.createElement("span", { style: { fontSize: "12px", opacity: 0.6, marginTop: "2px" } }, subtitle))),
+            right));
+    }
+    /** The highlighted pill shown on the right side of a SelectableRow. */
+    function HighlightButton({ children }) {
+        return (window.SP_REACT.createElement("div", { style: {
+                flexShrink: 0,
+                padding: "6px 12px",
+                borderRadius: "999px",
+                background: "var(--gpSystemAccent, #1a9fff)",
+                color: "#fff",
+                fontSize: "12px",
+                fontWeight: 600,
+                textAlign: "center",
+            } }, children));
+    }
+
+    /**
      * Page that mimics protontricks: it lists every Proton compatdata prefix
-     * (resolved to its game name) so the user can pick a game and add its Proton
-     * save folder to the sync paths.
+     * (resolved to its game name) so the user can pick a game and drill into its
+     * save folder. Selecting a game opens the folder browser instead of uploading
+     * the whole prefix directly.
      */
     function ConfigureSteamSavePage({ serverApi }) {
         const [games, setGames] = React.useState(undefined);
@@ -1537,25 +1604,11 @@
                 }
             })();
         }, [serverApi]);
-        const onAddGame = (game) => {
-            const path = `${game.path}/**`;
-            serverApi
-                .callPluginMethod("test_syncpath", { path })
-                .then((r) => {
-                if (!r.success) {
-                    Toast.toast(r.result);
-                    return;
-                }
-                deckyFrontendLib.showModal(window.SP_REACT.createElement(deckyFrontendLib.ConfirmModal, { strTitle: Translator.translate("confirm.add"), strDescription: Translator.translate("confirm.add.path", { "path": path, "count": r.result }), onOK: () => {
-                        serverApi
-                            .callPluginMethod("add_syncpath", { path, file: targetFile })
-                            .then(() => {
-                            Toast.toast(Translator.translate("added.game", { "name": game.name, "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes") }));
-                        })
-                            .catch((e) => Toast.toast(e));
-                    } }));
-            })
-                .catch((e) => Toast.toast(e));
+        const onPickGame = (game) => {
+            Storage.setSessionStorageItem("steamBrowseStart", game.path);
+            Storage.setSessionStorageItem("steamSaveTarget", targetFile);
+            deckyFrontendLib.Navigation.CloseSideMenus();
+            deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse");
         };
         return (window.SP_REACT.createElement(Container, { title: Translator.translate("steam.saves") },
             window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
@@ -1566,10 +1619,84 @@
                 window.SP_REACT.createElement("small", null, Translator.translate("loading.games")))),
             games && games.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                 window.SP_REACT.createElement("small", null, error ? error : Translator.translate("no.compatdata")))),
-            games?.map((g) => (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: g.appid },
-                window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => onAddGame(g), label: window.SP_REACT.createElement("div", null,
-                        window.SP_REACT.createElement("div", null, g.name),
-                        window.SP_REACT.createElement("div", { style: { fontSize: "12px", opacity: 0.7 } }, g.appid)) }))))));
+            games?.map((g) => (window.SP_REACT.createElement(SelectableRow, { key: g.appid, title: g.name, subtitle: g.appid, right: window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select")), onClick: () => onPickGame(g) })))));
+    }
+
+    function parentDir(path) {
+        // Strip trailing slash, then drop the last segment.
+        const clean = path.replace(/\/+$/, "");
+        const idx = clean.lastIndexOf("/");
+        return idx <= 0 ? "/" : clean.substring(0, idx);
+    }
+    /**
+     * In-plugin folder browser. Starts at a game's Proton prefix and lets the user
+     * drill down to the exact save folder (or file) before confirming — mirroring
+     * the manual folder-picker flow but without relying on Steam's flaky file
+     * picker. Selecting a folder/file runs test_syncpath and the usual confirm
+     * dialog, then adds the path to the sync list.
+     */
+    function ConfigureSteamBrowsePage({ serverApi }) {
+        const targetFile = Storage.getSessionStorageItem("steamSaveTarget") || "includes";
+        const [currentPath, setCurrentPath] = React.useState(Storage.getSessionStorageItem("steamBrowseStart") || "/home/deck");
+        const [entries, setEntries] = React.useState(undefined);
+        const [error, setError] = React.useState(undefined);
+        React.useEffect(() => {
+            (async () => {
+                setEntries(undefined);
+                setError(undefined);
+                try {
+                    const res = await serverApi.callPluginMethod("list_directory", { path: currentPath });
+                    if (res.success) {
+                        setEntries(res.result);
+                    }
+                    else {
+                        setError(String(res.result));
+                        setEntries([]);
+                    }
+                }
+                catch (e) {
+                    setError(String(e));
+                    setEntries([]);
+                }
+            })();
+        }, [currentPath, serverApi]);
+        const selectPath = (path, recursive) => {
+            const full = recursive ? `${path}/**` : path;
+            serverApi
+                .callPluginMethod("test_syncpath", { path: full })
+                .then((r) => {
+                if (!r.success) {
+                    Toast.toast(r.result);
+                    return;
+                }
+                deckyFrontendLib.showModal(window.SP_REACT.createElement(deckyFrontendLib.ConfirmModal, { strTitle: Translator.translate("confirm.add"), strDescription: Translator.translate("confirm.add.path", { "path": full, "count": r.result }), onOK: () => {
+                        serverApi
+                            .callPluginMethod("add_syncpath", { path: full, file: targetFile })
+                            .then(() => {
+                            Toast.toast(Translator.translate("added.path", {
+                                "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes"),
+                            }));
+                            deckyFrontendLib.Navigation.NavigateBack();
+                        })
+                            .catch((e) => Toast.toast(e));
+                    } }));
+            })
+                .catch((e) => Toast.toast(e));
+        };
+        return (window.SP_REACT.createElement(Container, { title: Translator.translate("browse") },
+            window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.NavigateBack() }, Translator.translate("back"))),
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", disabled: currentPath === "/", onClick: () => setCurrentPath(parentDir(currentPath)) }, Translator.translate("up.dir"))),
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => selectPath(currentPath, true) }, Translator.translate("select.this.folder"))),
+                window.SP_REACT.createElement("small", { style: { display: "block", wordBreak: "break-all", opacity: 0.7 } }, currentPath)),
+            entries === undefined && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                window.SP_REACT.createElement("small", null, Translator.translate("loading.dir")))),
+            entries && entries.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                window.SP_REACT.createElement("small", null, error ? error : Translator.translate("empty.folder")))),
+            entries?.map((e) => (window.SP_REACT.createElement(SelectableRow, { key: e.path, title: e.name, subtitle: e.is_dir ? Translator.translate("folder") : Translator.translate("file"), right: e.is_dir ? (window.SP_REACT.createElement(HighlightButton, null, "\u203A")) : (window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select"))), onClick: () => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false)) })))));
     }
 
     function RenderSyncLogPage$1() {
@@ -1608,6 +1735,7 @@
         serverApi.routerHook.addRoute("/dcs-configure-paths", () => window.SP_REACT.createElement(ConfigurePathsPage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-configure-backend", () => window.SP_REACT.createElement(ConfigureBackendPage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-configure-steam-saves", () => window.SP_REACT.createElement(ConfigureSteamSavePage, { serverApi: serverApi }), { exact: true });
+        serverApi.routerHook.addRoute("/dcs-configure-steam-browse", () => window.SP_REACT.createElement(ConfigureSteamBrowsePage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-sync-logs", () => window.SP_REACT.createElement(RenderSyncLogPage$1, null), { exact: true });
         serverApi.routerHook.addRoute("/dcs-plugin-logs", () => window.SP_REACT.createElement(RenderSyncLogPage, null), { exact: true });
         const { unregister: removeGameExecutionListener } = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((e) => {
@@ -1634,6 +1762,7 @@
                 serverApi.routerHook.removeRoute("/dcs-configure-paths");
                 serverApi.routerHook.removeRoute("/dcs-configure-backend");
                 serverApi.routerHook.removeRoute("/dcs-configure-steam-saves");
+                serverApi.routerHook.removeRoute("/dcs-configure-steam-browse");
                 serverApi.routerHook.removeRoute("/dcs-sync-logs");
                 serverApi.routerHook.removeRoute("/dcs-plugin-logs");
             },

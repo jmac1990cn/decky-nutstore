@@ -11,6 +11,7 @@ import { FaSave } from "react-icons/fa";
 import ConfigurePathsPage from "./pages/ConfigurePathsPage";
 import ConfigureBackendPage from "./pages/ConfigureBackendPage";
 import ConfigureSteamSavePage from "./pages/ConfigureSteamSavePage";
+import ConfigureSteamBrowsePage from "./pages/ConfigureSteamBrowsePage";
 import RenderSyncLogPage from "./pages/RenderSyncLogPage";
 import RenderPluginLogPage from "./pages/RenderPluginLogPage";
 
@@ -27,6 +28,7 @@ export default definePlugin((serverApi: ServerAPI) => {
   serverApi.routerHook.addRoute("/dcs-configure-paths", () => <ConfigurePathsPage serverApi={serverApi} />, { exact: true });
   serverApi.routerHook.addRoute("/dcs-configure-backend", () => <ConfigureBackendPage serverApi={serverApi} />, { exact: true });
   serverApi.routerHook.addRoute("/dcs-configure-steam-saves", () => <ConfigureSteamSavePage serverApi={serverApi} />, { exact: true });
+  serverApi.routerHook.addRoute("/dcs-configure-steam-browse", () => <ConfigureSteamBrowsePage serverApi={serverApi} />, { exact: true });
   serverApi.routerHook.addRoute("/dcs-sync-logs", () => <RenderSyncLogPage />, { exact: true });
   serverApi.routerHook.addRoute("/dcs-plugin-logs", () => <RenderPluginLogPage />, { exact: true });
 
@@ -56,6 +58,7 @@ export default definePlugin((serverApi: ServerAPI) => {
       serverApi.routerHook.removeRoute("/dcs-configure-paths");
       serverApi.routerHook.removeRoute("/dcs-configure-backend");
       serverApi.routerHook.removeRoute("/dcs-configure-steam-saves");
+      serverApi.routerHook.removeRoute("/dcs-configure-steam-browse");
       serverApi.routerHook.removeRoute("/dcs-sync-logs");
       serverApi.routerHook.removeRoute("/dcs-plugin-logs");
     },

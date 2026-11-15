@@ -50,6 +50,11 @@ class Plugin:
             "Executing: RcloneSetupManager.list_steam_compatdata()")
         return await self.manager_setup.list_steam_compatdata()
 
+    async def list_directory(self, path: str):
+        decky_plugin.logger.debug(
+            "Executing: RcloneSetupManager.list_directory(%s)", path)
+        return await self.manager_setup.list_directory(path)
+
 # Syncing
 
     async def sync_now_internal(self, direction: str, resync: bool):

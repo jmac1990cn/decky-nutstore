@@ -1,9 +1,9 @@
-import { ButtonItem, ConfirmModal, Navigation, PanelSection, PanelSectionRow, showModal } from "decky-frontend-lib";
+import { ButtonItem, Navigation, PanelSection, PanelSectionRow } from "decky-frontend-lib";
 import { useEffect, useState } from "react";
 import Container from "../components/Container";
+import SelectableRow, { HighlightButton } from "../components/SelectableRow";
 import { PageProps } from "../helpers/types";
 import { Storage } from "../helpers/storage";
-import { Toast } from "../helpers/toast";
 import { Translator } from "../helpers/translator";
 
 export type SteamGame = {
@@ -14,8 +14,9 @@ export type SteamGame = {
 
 /**
  * Page that mimics protontricks: it lists every Proton compatdata prefix
- * (resolved to its game name) so the user can pick a game and add its Proton
- * save folder to the sync paths.
+ * (resolved to its game name) so the user can pick a game and drill into its
+ * save folder. Selecting a game opens the folder browser instead of uploading
+ * the whole prefix directly.
  */
 export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
   const [games, setGames] = useState<SteamGame[] | undefined>(undefined);
@@ -42,33 +43,11 @@ export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
     })();
   }, [serverApi]);
 
-  const onAddGame = (game: SteamGame) => {
-    const path = `${game.path}/**`;
-    serverApi
-      .callPluginMethod<{ path: string }, number>("test_syncpath", { path })
-      .then((r) => {
-        if (!r.success) {
-          Toast.toast(r.result);
-          return;
-        }
-        showModal(
-          <ConfirmModal
-            strTitle={Translator.translate("confirm.add")}
-            strDescription={Translator.translate("confirm.add.path", { "path": path, "count": r.result })}
-            onOK={() => {
-              serverApi
-                .callPluginMethod<{ path: string; file: "includes" | "excludes" }, void>("add_syncpath", { path, file: targetFile })
-                .then(() => {
-                  Toast.toast(
-                    Translator.translate("added.game", { "name": game.name, "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes") })
-                  );
-                })
-                .catch((e) => Toast.toast(e));
-            }}
-          />
-        );
-      })
-      .catch((e) => Toast.toast(e));
+  const onPickGame = (game: SteamGame) => {
+    Storage.setSessionStorageItem("steamBrowseStart", game.path);
+    Storage.setSessionStorageItem("steamSaveTarget", targetFile);
+    Navigation.CloseSideMenus();
+    Navigation.Navigate("/dcs-configure-steam-browse");
   };
 
   return (
@@ -95,18 +74,13 @@ export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
       )}
 
       {games?.map((g) => (
-        <PanelSectionRow key={g.appid}>
-          <ButtonItem
-            layout="below"
-            onClick={() => onAddGame(g)}
-            label={
-              <div>
-                <div>{g.name}</div>
-                <div style={{ fontSize: "12px", opacity: 0.7 }}>{g.appid}</div>
-              </div>
-            }
-          />
-        </PanelSectionRow>
+        <SelectableRow
+          key={g.appid}
+          title={g.name}
+          subtitle={g.appid}
+          right={<HighlightButton>{Translator.translate("select")}</HighlightButton>}
+          onClick={() => onPickGame(g)}
+        />
       ))}
     </Container>
   );

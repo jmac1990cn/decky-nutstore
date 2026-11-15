@@ -163,12 +163,21 @@ class RcloneSetupManager:
         readable game name from the matching ``appmanifest_<appid>.acf`` file.
         This mirrors the way protontricks enumerates installed games.
 
+        Non-Steam shortcuts have no ``appmanifest``; their names are resolved
+        from ``steamapps/shortcuts.vdf`` instead.
+
         Returns:
         list: A list of dicts ``{"appid": str, "name": str, "path": str}`` sorted
               by game name (case-insensitive).
         """
         games = []
+        shortcut_map: dict = {}
         for steamapps in self._steam_steamapps_dirs():
+            # Non-Steam games live only in shortcuts.vdf.
+            shortcut_vdf = steamapps / "shortcuts.vdf"
+            if shortcut_vdf.is_file():
+                shortcut_map.update(self._parse_shortcuts_vdf(shortcut_vdf))
+
             compatdata = steamapps / "compatdata"
             if not compatdata.is_dir():
                 continue
@@ -176,7 +185,7 @@ class RcloneSetupManager:
                 if not entry.is_dir() or not entry.name.isdigit():
                     continue
                 appid = entry.name
-                name = self._resolve_app_name(steamapps, appid) or appid
+                name = self._resolve_app_name(steamapps, appid) or shortcut_map.get(appid) or appid
                 games.append({"appid": appid, "name": name, "path": str(entry)})
 
         # De-duplicate by appid (a game could appear in multiple libraries) and
@@ -190,6 +199,104 @@ class RcloneSetupManager:
             unique.append(g)
         unique.sort(key=lambda g: g["name"].lower())
         return unique
+
+    async def list_directory(self, path: str):
+        """
+        Lists the contents of a directory for the in-plugin folder browser.
+
+        Parameters:
+        path (str): The absolute directory to list.
+
+        Returns:
+        list: A list of dicts ``{"name": str, "path": str, "is_dir": bool}`` with
+              directories first, then files, each sorted by name (case-insensitive).
+        """
+        p = Path(path)
+        if not p.is_dir():
+            raise Exception("Path is not a directory: " + path)
+        decky_plugin.logger.debug("Listing directory: %s", path)
+        entries = []
+        for entry in p.iterdir():
+            entries.append({"name": entry.name, "path": str(entry), "is_dir": entry.is_dir()})
+        entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
+        return entries
+
+    def _parse_shortcuts_vdf(self, path: Path) -> dict:
+        """
+        Parses Steam's binary ``shortcuts.vdf`` and returns a mapping of
+        ``{appid (str): AppName}`` for every non-Steam shortcut.
+
+        Steam stores non-Steam shortcuts with a computed appid (the same value
+        used as the ``compatdata`` folder name). The binary VDF format used here:
+          - ``0x00`` marks the start of a sub-node (name follows, children until 0x08)
+          - ``0x08`` closes the current node
+          - value types: 0x01 string, 0x02 int32, 0x05 wstring (UTF-16-LE), 0x07 uint64
+        """
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except Exception:
+            return {}
+
+        result: dict = {}
+        n = len(data)
+
+        def read_cstr(pos: int):
+            end = data.index(b"\x00", pos)
+            return data[pos:end].decode("utf-8", "replace"), end + 1
+
+        def read_wstr(pos: int):
+            i = pos
+            while i + 1 < n and not (data[i] == 0 and data[i + 1] == 0):
+                i += 2
+            return data[pos:i].decode("utf-16-le", "replace"), i + 2
+
+        def recurse(pos: int):
+            node: dict = {}
+            while pos < n:
+                typ = data[pos]
+                pos += 1
+                if typ == 0x08:  # end of node
+                    break
+                name, pos = read_cstr(pos)
+                if typ == 0x01:  # string
+                    val, pos = read_cstr(pos)
+                    node[name] = val
+                elif typ == 0x02:  # int32
+                    val = int.from_bytes(data[pos:pos + 4], "little")
+                    pos += 4
+                    node[name] = val
+                elif typ == 0x05:  # wstring (UTF-16-LE)
+                    val, pos = read_wstr(pos)
+                    node[name] = val
+                elif typ == 0x07:  # uint64
+                    val = int.from_bytes(data[pos:pos + 8], "little")
+                    pos += 8
+                    node[name] = val
+                else:  # 0x00 or unknown -> sub-node
+                    sub, pos = recurse(pos)
+                    node[name] = sub
+            return node, pos
+
+        try:
+            root, _ = recurse(0)
+        except Exception:
+            return result
+
+        def extract(node):
+            if isinstance(node, dict):
+                appid = node.get("appid")
+                app_name = node.get("AppName")
+                if appid is not None and app_name:
+                    try:
+                        result[str(int(appid))] = app_name
+                    except (ValueError, TypeError):
+                        result[str(appid)] = app_name
+                for v in node.values():
+                    extract(v)
+
+        extract(root)
+        return result
 
     def _steam_steamapps_dirs(self):
         """
