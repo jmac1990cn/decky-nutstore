@@ -74,13 +74,14 @@ export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
       )}
 
       {games?.map((g) => (
-        <SelectableRow
-          key={g.appid}
-          title={g.name}
-          subtitle={g.appid}
-          right={<HighlightButton>{Translator.translate("select")}</HighlightButton>}
-          onClick={() => onPickGame(g)}
-        />
+        <PanelSectionRow key={g.appid}>
+          <SelectableRow
+            title={g.name}
+            subtitle={g.appid}
+            right={<HighlightButton>{Translator.translate("select")}</HighlightButton>}
+            onClick={() => onPickGame(g)}
+          />
+        </PanelSectionRow>
       ))}
     </Container>
   );

@@ -1533,23 +1533,21 @@
     }
 
     /**
-     * A tap-friendly list row with no bottom separator (replaces the default
-     * decky "white bar"). The selectable action is surfaced as a highlighted pill
-     * on the right side.
+     * A tap- and gamepad-friendly list row.
+     *
+     * Built on `ButtonItem` so Steam's focus manager can move the gamepad cursor
+     * up/down across entries and activate them with the A button (with a built-in
+     * focus highlight). `bottomSeparator="none"` removes the default decky white
+     * bar, and the selectable action is surfaced as a highlighted pill on the
+     * right side (passed via `right`).
      */
     function SelectableRow({ title, subtitle, right, onClick, }) {
-        return (window.SP_REACT.createElement("div", { onClick: onClick, style: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 14px",
-                marginBottom: "6px",
-                borderRadius: "10px",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                cursor: "pointer",
-            } },
-            window.SP_REACT.createElement("div", { style: { display: "flex", flexDirection: "column", minWidth: 0, marginRight: "12px" } },
+        return (window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { bottomSeparator: "none", highlightOnFocus: true, onClick: onClick, label: window.SP_REACT.createElement("div", { style: {
+                    display: "flex",
+                    flexDirection: "column",
+                    minWidth: 0,
+                    marginRight: "12px",
+                } },
                 window.SP_REACT.createElement("span", { style: {
                         fontSize: "14px",
                         fontWeight: 600,
@@ -1557,8 +1555,7 @@
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                     } }, title),
-                subtitle && (window.SP_REACT.createElement("span", { style: { fontSize: "12px", opacity: 0.6, marginTop: "2px" } }, subtitle))),
-            right));
+                subtitle && (window.SP_REACT.createElement("span", { style: { fontSize: "12px", opacity: 0.6, marginTop: "2px" } }, subtitle))) }, right));
     }
     /** The highlighted pill shown on the right side of a SelectableRow. */
     function HighlightButton({ children }) {
@@ -1619,7 +1616,8 @@
                 window.SP_REACT.createElement("small", null, Translator.translate("loading.games")))),
             games && games.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                 window.SP_REACT.createElement("small", null, error ? error : Translator.translate("no.compatdata")))),
-            games?.map((g) => (window.SP_REACT.createElement(SelectableRow, { key: g.appid, title: g.name, subtitle: g.appid, right: window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select")), onClick: () => onPickGame(g) })))));
+            games?.map((g) => (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: g.appid },
+                window.SP_REACT.createElement(SelectableRow, { title: g.name, subtitle: g.appid, right: window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select")), onClick: () => onPickGame(g) }))))));
     }
 
     function parentDir(path) {
@@ -1696,7 +1694,8 @@
                 window.SP_REACT.createElement("small", null, Translator.translate("loading.dir")))),
             entries && entries.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                 window.SP_REACT.createElement("small", null, error ? error : Translator.translate("empty.folder")))),
-            entries?.map((e) => (window.SP_REACT.createElement(SelectableRow, { key: e.path, title: e.name, subtitle: e.is_dir ? Translator.translate("folder") : Translator.translate("file"), right: e.is_dir ? (window.SP_REACT.createElement(HighlightButton, null, "\u203A")) : (window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select"))), onClick: () => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false)) })))));
+            entries?.map((e) => (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: e.path },
+                window.SP_REACT.createElement(SelectableRow, { title: e.name, subtitle: e.is_dir ? Translator.translate("folder") : Translator.translate("file"), right: e.is_dir ? (window.SP_REACT.createElement(HighlightButton, null, "\u203A")) : (window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select"))), onClick: () => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false)) }))))));
     }
 
     function RenderSyncLogPage$1() {

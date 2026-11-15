@@ -124,19 +124,20 @@ export default function ConfigureSteamBrowsePage({ serverApi }: PageProps<{}>) {
       )}
 
       {entries?.map((e) => (
-        <SelectableRow
-          key={e.path}
-          title={e.name}
-          subtitle={e.is_dir ? Translator.translate("folder") : Translator.translate("file")}
-          right={
-            e.is_dir ? (
-              <HighlightButton>›</HighlightButton>
-            ) : (
-              <HighlightButton>{Translator.translate("select")}</HighlightButton>
-            )
-          }
-          onClick={() => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false))}
-        />
+        <PanelSectionRow key={e.path}>
+          <SelectableRow
+            title={e.name}
+            subtitle={e.is_dir ? Translator.translate("folder") : Translator.translate("file")}
+            right={
+              e.is_dir ? (
+                <HighlightButton>›</HighlightButton>
+              ) : (
+                <HighlightButton>{Translator.translate("select")}</HighlightButton>
+              )
+            }
+            onClick={() => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false))}
+          />
+        </PanelSectionRow>
       ))}
     </Container>
   );

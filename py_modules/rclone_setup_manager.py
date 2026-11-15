@@ -2,6 +2,7 @@ import asyncio
 from asyncio.subprocess import create_subprocess_exec
 import os
 import re
+import zlib
 from pathlib import Path
 import decky_plugin
 import plugin_config
@@ -173,10 +174,12 @@ class RcloneSetupManager:
         games = []
         shortcut_map: dict = {}
         for steamapps in self._steam_steamapps_dirs():
-            # Non-Steam games live only in shortcuts.vdf.
-            shortcut_vdf = steamapps / "shortcuts.vdf"
-            if shortcut_vdf.is_file():
-                shortcut_map.update(self._parse_shortcuts_vdf(shortcut_vdf))
+            # Non-Steam games live only in shortcuts.vdf. Steam stores the
+            # per-user shortcuts under userdata/<steamid>/config/shortcuts.vdf,
+            # but some setups also keep a copy at steamapps/shortcuts.vdf, so we
+            # check both.
+            for vdf in self._shortcut_vdf_paths(steamapps):
+                shortcut_map.update(self._parse_shortcuts_vdf(vdf))
 
             compatdata = steamapps / "compatdata"
             if not compatdata.is_dir():
@@ -221,13 +224,53 @@ class RcloneSetupManager:
         entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
         return entries
 
+    def _steam_steamapps_dirs(self):
+        """
+        Returns every known Steam ``steamapps`` directory (native + Flatpak).
+        """
+        home = Path.home()
+        candidates = [
+            home / ".steam" / "steam" / "steamapps",
+            home / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps",
+        ]
+        return [p for p in candidates if p.is_dir()]
+
+    def _shortcut_vdf_paths(self, steamapps: Path):
+        """
+        Yields every ``shortcuts.vdf`` that could describe non-Steam games.
+
+        Steam keeps per-user shortcuts in
+        ``<steam>/userdata/<steamid>/config/shortcuts.vdf``; older / some setups
+        also store one at ``steamapps/shortcuts.vdf``. We return all that exist.
+        """
+        found = []
+        # Per-user shortcuts (the real home of non-Steam games).
+        userdata = steamapps.parent / "userdata"
+        if userdata.is_dir():
+            for sid in userdata.iterdir():
+                if not sid.is_dir() or not sid.name.isdigit():
+                    continue
+                vdf = sid / "config" / "shortcuts.vdf"
+                if vdf.is_file():
+                    found.append(vdf)
+        # Fallback copy next to steamapps.
+        vdf = steamapps / "shortcuts.vdf"
+        if vdf.is_file():
+            found.append(vdf)
+        return found
+
     def _parse_shortcuts_vdf(self, path: Path) -> dict:
         """
         Parses Steam's binary ``shortcuts.vdf`` and returns a mapping of
         ``{appid (str): AppName}`` for every non-Steam shortcut.
 
-        Steam stores non-Steam shortcuts with a computed appid (the same value
-        used as the ``compatdata`` folder name). The binary VDF format used here:
+        Crucially, the ``compatdata`` folder name for a non-Steam game is NOT the
+        ``appid`` stored inside the vdf. Steam *computes* it as
+        ``crc32(Exe + "\\0" + AppName) | 0x80000000`` (the same algorithm
+        Protontricks uses). So we read each shortcut's ``Exe`` and ``AppName``
+        and derive the on-disk appid ourselves.
+
+        The binary VDF format used here:
           - ``0x00`` marks the start of a sub-node (name follows, children until 0x08)
           - ``0x08`` closes the current node
           - value types: 0x01 string, 0x02 int32, 0x05 wstring (UTF-16-LE), 0x07 uint64
@@ -285,29 +328,23 @@ class RcloneSetupManager:
 
         def extract(node):
             if isinstance(node, dict):
-                appid = node.get("appid")
                 app_name = node.get("AppName")
-                if appid is not None and app_name:
+                exe = node.get("Exe")
+                # A real shortcut always has both Exe and AppName; the computed
+                # appid is what Steam uses as the compatdata folder name.
+                if app_name and exe:
                     try:
-                        result[str(int(appid))] = app_name
-                    except (ValueError, TypeError):
-                        result[str(appid)] = app_name
+                        computed = (
+                            zlib.crc32((exe + "\x00" + app_name).encode("utf-8")) | 0x80000000
+                        )
+                        result[str(computed)] = app_name
+                    except Exception:
+                        pass
                 for v in node.values():
                     extract(v)
 
         extract(root)
         return result
-
-    def _steam_steamapps_dirs(self):
-        """
-        Returns every known Steam ``steamapps`` directory (native + Flatpak).
-        """
-        home = Path.home()
-        candidates = [
-            home / ".steam" / "steam" / "steamapps",
-            home / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps",
-        ]
-        return [p for p in candidates if p.is_dir()]
 
     def _resolve_app_name(self, steamapps: Path, appid: str):
         """

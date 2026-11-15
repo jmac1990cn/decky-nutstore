@@ -1,9 +1,14 @@
+import { ButtonItem } from "decky-frontend-lib";
 import { ReactNode } from "react";
 
 /**
- * A tap-friendly list row with no bottom separator (replaces the default
- * decky "white bar"). The selectable action is surfaced as a highlighted pill
- * on the right side.
+ * A tap- and gamepad-friendly list row.
+ *
+ * Built on `ButtonItem` so Steam's focus manager can move the gamepad cursor
+ * up/down across entries and activate them with the A button (with a built-in
+ * focus highlight). `bottomSeparator="none"` removes the default decky white
+ * bar, and the selectable action is surfaced as a highlighted pill on the
+ * right side (passed via `right`).
  */
 export default function SelectableRow({
   title,
@@ -17,38 +22,40 @@ export default function SelectableRow({
   onClick: () => void;
 }) {
   return (
-    <div
+    <ButtonItem
+      bottomSeparator="none"
+      highlightOnFocus
       onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "12px 14px",
-        marginBottom: "6px",
-        borderRadius: "10px",
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        cursor: "pointer",
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, marginRight: "12px" }}>
-        <span
+      label={
+        <div
           style={{
-            fontSize: "14px",
-            fontWeight: 600,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            marginRight: "12px",
           }}
         >
-          {title}
-        </span>
-        {subtitle && (
-          <span style={{ fontSize: "12px", opacity: 0.6, marginTop: "2px" }}>{subtitle}</span>
-        )}
-      </div>
+          <span
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {title}
+          </span>
+          {subtitle && (
+            <span style={{ fontSize: "12px", opacity: 0.6, marginTop: "2px" }}>
+              {subtitle}
+            </span>
+          )}
+        </div>
+      }
+    >
       {right}
-    </div>
+    </ButtonItem>
   );
 }
 
