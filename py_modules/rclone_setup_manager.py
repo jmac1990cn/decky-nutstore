@@ -1,6 +1,7 @@
 import asyncio
 from asyncio.subprocess import create_subprocess_exec
 import os
+import re
 from pathlib import Path
 import decky_plugin
 import plugin_config
@@ -152,3 +153,71 @@ class RcloneSetupManager:
                     f.write(line)
 
         plugin_config.regenerate_filter_file()
+
+    async def list_steam_compatdata(self):
+        """
+        Lists Proton compatdata prefixes with their resolved game names.
+
+        Scans every Steam library's ``steamapps/compatdata`` directory, keeps the
+        numeric folders (each is an appid / Proton prefix) and resolves the human
+        readable game name from the matching ``appmanifest_<appid>.acf`` file.
+        This mirrors the way protontricks enumerates installed games.
+
+        Returns:
+        list: A list of dicts ``{"appid": str, "name": str, "path": str}`` sorted
+              by game name (case-insensitive).
+        """
+        games = []
+        for steamapps in self._steam_steamapps_dirs():
+            compatdata = steamapps / "compatdata"
+            if not compatdata.is_dir():
+                continue
+            for entry in compatdata.iterdir():
+                if not entry.is_dir() or not entry.name.isdigit():
+                    continue
+                appid = entry.name
+                name = self._resolve_app_name(steamapps, appid) or appid
+                games.append({"appid": appid, "name": name, "path": str(entry)})
+
+        # De-duplicate by appid (a game could appear in multiple libraries) and
+        # sort by name so the list reads like protontricks' game picker.
+        seen = set()
+        unique = []
+        for g in games:
+            if g["appid"] in seen:
+                continue
+            seen.add(g["appid"])
+            unique.append(g)
+        unique.sort(key=lambda g: g["name"].lower())
+        return unique
+
+    def _steam_steamapps_dirs(self):
+        """
+        Returns every known Steam ``steamapps`` directory (native + Flatpak).
+        """
+        home = Path.home()
+        candidates = [
+            home / ".steam" / "steam" / "steamapps",
+            home / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps",
+        ]
+        return [p for p in candidates if p.is_dir()]
+
+    def _resolve_app_name(self, steamapps: Path, appid: str):
+        """
+        Resolves a game name from its ``appmanifest_<appid>.acf`` file.
+
+        Returns the name, or ``None`` when no manifest is found (e.g. a tool,
+        Proton runtime, or a prefix without an installed app).
+        """
+        manifest = steamapps / f"appmanifest_{appid}.acf"
+        if not manifest.is_file():
+            return None
+        try:
+            with open(manifest, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    m = re.search(r'"name"\s*"([^"]*)"', line)
+                    if m:
+                        return m.group(1)
+        except Exception:
+            return None
+        return None

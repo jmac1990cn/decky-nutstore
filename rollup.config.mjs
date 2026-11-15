@@ -5,8 +5,12 @@ import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig } from 'rollup';
 import importAssets from 'rollup-plugin-import-assets';
+import { readFileSync } from 'fs';
 
-import plugin from "./plugin.json" assert { type: "json" };
+// Read plugin.json without relying on an import-attribute syntax (the old
+// `assert { type: "json" }` was removed in Node 22, while `with { ... }`
+// is unavailable on older Node). This keeps the build working on any version.
+const plugin = JSON.parse(readFileSync(new URL('./plugin.json', import.meta.url)));
 
 export default defineConfig({
   input: './src/index.tsx',

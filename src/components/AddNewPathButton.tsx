@@ -1,8 +1,9 @@
-import { ButtonItem, showContextMenu, Menu, MenuItem, FilePickerRes, showModal, ConfirmModal } from "decky-frontend-lib";
+import { ButtonItem, Menu, MenuItem, Navigation, showContextMenu, FilePickerRes, showModal, ConfirmModal } from "decky-frontend-lib";
 import { useState } from "react";
 import { PageProps } from "../helpers/types";
 import { Toast } from "../helpers/toast";
 import { Translator } from "../helpers/translator";
+import { Storage } from "../helpers/storage";
 
 export default function AddNewPathButton({ serverApi, onPathAdded, file }: PageProps<{ onPathAdded?: () => void; file: "includes" | "excludes" }>) {
   const [buttonDisabled, setButtonDisabled] = useState(false);
@@ -49,6 +50,44 @@ export default function AddNewPathButton({ serverApi, onPathAdded, file }: PageP
       });
   };
 
+  // The original "manual add" flow: pick a file / folder via the Steam picker.
+  const showManualMenu = () => {
+    showContextMenu(
+      <Menu label={Translator.translate("manual.add")}>
+        <MenuItem
+          onSelected={() =>
+            serverApi
+              .openFilePicker("/home/deck", true)
+              .then((e) => onFileChosen(e, "file"))
+              .catch()
+          }
+        >
+          {Translator.translate("file")}
+        </MenuItem>
+        <MenuItem
+          onSelected={() =>
+            serverApi
+              .openFilePicker("/home/deck", false)
+              .then((e) => onFileChosen(e, "directory"))
+              .catch()
+          }
+        >
+          {Translator.translate("folder")}
+        </MenuItem>
+        <MenuItem
+          onSelected={() =>
+            serverApi
+              .openFilePicker("/home/deck", false)
+              .then((e) => onFileChosen(e, "directory-norecurse"))
+              .catch()
+          }
+        >
+          {Translator.translate("folder.exclude")}
+        </MenuItem>
+      </Menu>
+    );
+  };
+
   return (
     <ButtonItem
       // icon={<FaPlus />}
@@ -56,35 +95,17 @@ export default function AddNewPathButton({ serverApi, onPathAdded, file }: PageP
       onClick={() =>
         showContextMenu(
           <Menu label={Translator.translate("select.path")}>
-            <MenuItem
-              onSelected={() =>
-                serverApi
-                  .openFilePicker("/home/deck", true)
-                  .then((e) => onFileChosen(e, "file"))
-                  .catch()
-              }
-            >
-              {Translator.translate("file")}
+            <MenuItem onSelected={() => showManualMenu()}>
+              {Translator.translate("manual.add")}
             </MenuItem>
             <MenuItem
-              onSelected={() =>
-                serverApi
-                  .openFilePicker("/home/deck", false)
-                  .then((e) => onFileChosen(e, "directory"))
-                  .catch()
-              }
+              onSelected={() => {
+                Storage.setSessionStorageItem("steamSaveTarget", file);
+                Navigation.CloseSideMenus();
+                Navigation.Navigate("/dcs-configure-steam-saves");
+              }}
             >
-              {Translator.translate("folder")}
-            </MenuItem>
-            <MenuItem
-              onSelected={() =>
-                serverApi
-                  .openFilePicker("/home/deck", false)
-                  .then((e) => onFileChosen(e, "directory-norecurse"))
-                  .catch()
-              }
-            >
-              {Translator.translate("folder.exclude")}
+              {Translator.translate("open.save.dir")}
             </MenuItem>
           </Menu>
         )

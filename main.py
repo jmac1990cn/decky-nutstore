@@ -45,6 +45,11 @@ class Plugin:
             "Executing: RcloneSetupManager.remove_syncpath(%s, %s)", path, file)
         return await self.manager_setup.remove_syncpath(path, file)
 
+    async def list_steam_compatdata(self):
+        decky_plugin.logger.debug(
+            "Executing: RcloneSetupManager.list_steam_compatdata()")
+        return await self.manager_setup.list_steam_compatdata()
+
 # Syncing
 
     async def sync_now_internal(self, direction: str, resync: bool):

@@ -302,6 +302,7 @@
     var configuration$6 = "Configuration";
     var file$6 = "File";
     var folder$6 = "Folder";
+    var back$2 = "Back";
     var includes$6 = "Includes";
     var excludes$6 = "Excludes";
     var english = {
@@ -323,11 +324,19 @@
     	"confirm.add": "Confirm Add",
     	"confirm.add.path": "Path {{path}} matches {{count}} file(s). Proceed?",
     	"select.path": "Select Path to Sync",
+    	"manual.add": "Manual Add",
+    	"open.save.dir": "Open Save Directory",
     	file: file$6,
     	folder: folder$6,
     	"folder.exclude": "Folder (exclude subfolders)",
     	"add.to.sync": "Add Path to Sync",
     	"exclude.from.sync": "Exclude Path from Sync",
+    	"steam.saves": "Steam Game Saves",
+    	"steam.save.select": "Pick a game to add its Proton save folder to sync.",
+    	"loading.games": "Loading games...",
+    	"no.compatdata": "No game prefixes found in compatdata.",
+    	back: back$2,
+    	"added.game": "Added {{name}} to {{file}}",
     	"confirm.remove": "Confirm Remove",
     	"removing.path": "Removing Path {{path}} Proceed?",
     	"includes.vs.exclude": "Includes vs Excludes",
@@ -601,6 +610,7 @@
     var configuration$1 = "配置";
     var file$1 = "檔案";
     var folder$1 = "資料夾";
+    var back$1 = "返回";
     var includes$1 = "包含";
     var excludes$1 = "排除";
     var chinese = {
@@ -622,11 +632,19 @@
     	"confirm.add": "確認添加",
     	"confirm.add.path": "路徑 {{path}} 對應 {{count}} 個檔案。繼續？",
     	"select.path": "選擇要同步的路徑",
+    	"manual.add": "手動添加",
+    	"open.save.dir": "開啟存檔目錄",
     	file: file$1,
     	folder: folder$1,
     	"folder.exclude": "資料夾 (排除子資料夾)",
     	"add.to.sync": "將路徑添加到同步",
     	"exclude.from.sync": "將路徑從同步中排除",
+    	"steam.saves": "Steam 遊戲存檔",
+    	"steam.save.select": "選擇一個遊戲，將其 Proton 存檔目錄加入同步。",
+    	"loading.games": "正在載入遊戲清單……",
+    	"no.compatdata": "在 compatdata 中未找到遊戲前綴。",
+    	back: back$1,
+    	"added.game": "已將 {{name}} 加入{{file}}",
     	"confirm.remove": "確認移除",
     	"removing.path": "移除路徑 {{path}}。繼續？",
     	"includes.vs.exclude": "包含或排除",
@@ -672,6 +690,7 @@
     var configuration = "配置";
     var file = "文件";
     var folder = "文件夹";
+    var back = "返回";
     var includes = "包含";
     var excludes = "排除";
     var chineseSimplified = {
@@ -693,11 +712,19 @@
     	"confirm.add": "确认添加",
     	"confirm.add.path": "路径 {{path}} 匹配 {{count}} 个文件，是否继续？",
     	"select.path": "选择要同步的路径",
+    	"manual.add": "手动添加",
+    	"open.save.dir": "打开存档目录",
     	file: file,
     	folder: folder,
     	"folder.exclude": "文件夹（排除子文件夹）",
     	"add.to.sync": "添加到同步",
     	"exclude.from.sync": "从同步中排除",
+    	"steam.saves": "Steam 游戏存档",
+    	"steam.save.select": "选择一个游戏，将其 Proton 存档目录加入同步。",
+    	"loading.games": "正在加载游戏列表……",
+    	"no.compatdata": "在 compatdata 中未找到游戏前缀。",
+    	back: back,
+    	"added.game": "已将 {{name}} 加入{{file}}",
     	"confirm.remove": "确认移除",
     	"removing.path": "正在移除路径 {{path}}，是否继续？",
     	"includes.vs.exclude": "包含与排除",
@@ -1304,11 +1331,9 @@
                 setButtonDisabled(false);
             });
         };
-        return (window.SP_REACT.createElement(deckyFrontendLib.ButtonItem
-        // icon={<FaPlus />}
-        , { 
-            // icon={<FaPlus />}
-            layout: "below", onClick: () => deckyFrontendLib.showContextMenu(window.SP_REACT.createElement(deckyFrontendLib.Menu, { label: Translator.translate("select.path") },
+        // The original "manual add" flow: pick a file / folder via the Steam picker.
+        const showManualMenu = () => {
+            deckyFrontendLib.showContextMenu(window.SP_REACT.createElement(deckyFrontendLib.Menu, { label: Translator.translate("manual.add") },
                 window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => serverApi
                         .openFilePicker("/home/deck", true)
                         .then((e) => onFileChosen(e, "file"))
@@ -1320,7 +1345,19 @@
                 window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => serverApi
                         .openFilePicker("/home/deck", false)
                         .then((e) => onFileChosen(e, "directory-norecurse"))
-                        .catch() }, Translator.translate("folder.exclude")))), disabled: buttonDisabled }, file === "includes" ? Translator.translate("add.to.sync") : Translator.translate("exclude.from.sync")));
+                        .catch() }, Translator.translate("folder.exclude"))));
+        };
+        return (window.SP_REACT.createElement(deckyFrontendLib.ButtonItem
+        // icon={<FaPlus />}
+        , { 
+            // icon={<FaPlus />}
+            layout: "below", onClick: () => deckyFrontendLib.showContextMenu(window.SP_REACT.createElement(deckyFrontendLib.Menu, { label: Translator.translate("select.path") },
+                window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => showManualMenu() }, Translator.translate("manual.add")),
+                window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => {
+                        Storage.setSessionStorageItem("steamSaveTarget", file);
+                        deckyFrontendLib.Navigation.CloseSideMenus();
+                        deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-saves");
+                    } }, Translator.translate("open.save.dir")))), disabled: buttonDisabled }, file === "includes" ? Translator.translate("add.to.sync") : Translator.translate("exclude.from.sync")));
     }
 
     function RenderExistingPathButton({ path, onPathRemoved, file, }) {
@@ -1471,6 +1508,70 @@
                     window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { onClick: handleSave, icon: window.SP_REACT.createElement(BsCloudFill, null), disabled: loading }, loading ? Translator.translate("nutstore.configuring") : Translator.translate("nutstore.save"))))));
     }
 
+    /**
+     * Page that mimics protontricks: it lists every Proton compatdata prefix
+     * (resolved to its game name) so the user can pick a game and add its Proton
+     * save folder to the sync paths.
+     */
+    function ConfigureSteamSavePage({ serverApi }) {
+        const [games, setGames] = React.useState(undefined);
+        const [error, setError] = React.useState(undefined);
+        // The "includes" / "excludes" target is passed through session storage by
+        // AddNewPathButton, exactly like the rest of this plugin.
+        const targetFile = Storage.getSessionStorageItem("steamSaveTarget") || "includes";
+        React.useEffect(() => {
+            (async () => {
+                try {
+                    const res = await serverApi.callPluginMethod("list_steam_compatdata", {});
+                    if (res.success) {
+                        setGames(res.result);
+                    }
+                    else {
+                        setError(String(res.result));
+                        setGames([]);
+                    }
+                }
+                catch (e) {
+                    setError(String(e));
+                    setGames([]);
+                }
+            })();
+        }, [serverApi]);
+        const onAddGame = (game) => {
+            const path = `${game.path}/**`;
+            serverApi
+                .callPluginMethod("test_syncpath", { path })
+                .then((r) => {
+                if (!r.success) {
+                    Toast.toast(r.result);
+                    return;
+                }
+                deckyFrontendLib.showModal(window.SP_REACT.createElement(deckyFrontendLib.ConfirmModal, { strTitle: Translator.translate("confirm.add"), strDescription: Translator.translate("confirm.add.path", { "path": path, "count": r.result }), onOK: () => {
+                        serverApi
+                            .callPluginMethod("add_syncpath", { path, file: targetFile })
+                            .then(() => {
+                            Toast.toast(Translator.translate("added.game", { "name": game.name, "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes") }));
+                        })
+                            .catch((e) => Toast.toast(e));
+                    } }));
+            })
+                .catch((e) => Toast.toast(e));
+        };
+        return (window.SP_REACT.createElement(Container, { title: Translator.translate("steam.saves") },
+            window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.NavigateBack() }, Translator.translate("back"))),
+                window.SP_REACT.createElement("small", null, Translator.translate("steam.save.select"))),
+            games === undefined && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                window.SP_REACT.createElement("small", null, Translator.translate("loading.games")))),
+            games && games.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                window.SP_REACT.createElement("small", null, error ? error : Translator.translate("no.compatdata")))),
+            games?.map((g) => (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: g.appid },
+                window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => onAddGame(g), label: window.SP_REACT.createElement("div", null,
+                        window.SP_REACT.createElement("div", null, g.name),
+                        window.SP_REACT.createElement("div", { style: { fontSize: "12px", opacity: 0.7 } }, g.appid)) }))))));
+    }
+
     function RenderSyncLogPage$1() {
         deckyFrontendLib.Navigation.CloseSideMenus();
         const [logs, _] = React.useState(() => Storage.getSessionStorageItem("syncLogs")?.replace(/\n{2,}/g, "\n") ?? "");
@@ -1506,6 +1607,7 @@
         });
         serverApi.routerHook.addRoute("/dcs-configure-paths", () => window.SP_REACT.createElement(ConfigurePathsPage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-configure-backend", () => window.SP_REACT.createElement(ConfigureBackendPage, { serverApi: serverApi }), { exact: true });
+        serverApi.routerHook.addRoute("/dcs-configure-steam-saves", () => window.SP_REACT.createElement(ConfigureSteamSavePage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-sync-logs", () => window.SP_REACT.createElement(RenderSyncLogPage$1, null), { exact: true });
         serverApi.routerHook.addRoute("/dcs-plugin-logs", () => window.SP_REACT.createElement(RenderSyncLogPage, null), { exact: true });
         const { unregister: removeGameExecutionListener } = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((e) => {
@@ -1531,6 +1633,7 @@
                 Storage.clearAllSessionStorage();
                 serverApi.routerHook.removeRoute("/dcs-configure-paths");
                 serverApi.routerHook.removeRoute("/dcs-configure-backend");
+                serverApi.routerHook.removeRoute("/dcs-configure-steam-saves");
                 serverApi.routerHook.removeRoute("/dcs-sync-logs");
                 serverApi.routerHook.removeRoute("/dcs-plugin-logs");
             },
