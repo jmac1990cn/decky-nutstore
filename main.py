@@ -55,6 +55,11 @@ class Plugin:
             "Executing: RcloneSetupManager.list_directory(%s)", path)
         return await self.manager_setup.list_directory(path)
 
+    async def detect_save_dirs(self, appid: str, name: str, prefix_path: str):
+        decky_plugin.logger.debug(
+            "Executing: RcloneSetupManager.detect_save_dirs(%s, %s, %s)", appid, name, prefix_path)
+        return await self.manager_setup.detect_save_dirs(appid, name, prefix_path)
+
 # Syncing
 
     async def sync_now_internal(self, direction: str, resync: bool):

@@ -1,4 +1,4 @@
-import { ButtonItem, Navigation, PanelSection, PanelSectionRow } from "decky-frontend-lib";
+import { ButtonItem, Menu, MenuItem, Navigation, PanelSection, PanelSectionRow, showContextMenu } from "decky-frontend-lib";
 import { useEffect, useState } from "react";
 import Container from "../components/Container";
 import SelectableRow, { HighlightButton } from "../components/SelectableRow";
@@ -43,11 +43,37 @@ export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
     })();
   }, [serverApi]);
 
+  // Picking a game now offers two independent actions:
+  //   1. Browse manually into its Proton prefix (the original flow).
+  //   2. Auto-detect likely save folders from the game's name (Game-Launcher style).
   const onPickGame = (game: SteamGame) => {
+    // Stash everything both flows need before navigating away.
     Storage.setSessionStorageItem("steamBrowseStart", game.path);
     Storage.setSessionStorageItem("steamSaveTarget", targetFile);
-    Navigation.CloseSideMenus();
-    Navigation.Navigate("/dcs-configure-steam-browse");
+    Storage.setSessionStorageItem("steamGameName", game.name);
+    Storage.setSessionStorageItem("steamGameAppid", game.appid);
+    Storage.setSessionStorageItem("steamGamePrefix", game.path);
+
+    showContextMenu(
+      <Menu label={game.name}>
+        <MenuItem
+          onSelected={() => {
+            Navigation.CloseSideMenus();
+            Navigation.Navigate("/dcs-configure-steam-browse");
+          }}
+        >
+          {Translator.translate("self.select.folder")}
+        </MenuItem>
+        <MenuItem
+          onSelected={() => {
+            Navigation.CloseSideMenus();
+            Navigation.Navigate("/dcs-configure-steam-detect");
+          }}
+        >
+          {Translator.translate("detect.saves")}
+        </MenuItem>
+      </Menu>
+    );
   };
 
   return (
@@ -58,7 +84,7 @@ export default function ConfigureSteamSavePage({ serverApi }: PageProps<{}>) {
             {Translator.translate("back")}
           </ButtonItem>
         </PanelSectionRow>
-        <small>{Translator.translate("steam.save.select")}</small>
+        <small>{Translator.translate("steam.save.select.v2")}</small>
       </PanelSection>
 
       {games === undefined && (

@@ -224,6 +224,177 @@ class RcloneSetupManager:
         entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
         return entries
 
+    # ------------------------------------------------------------------ #
+    # Save-directory detection (modelled on Game Launcher's savedir.js)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _name_variants(name: str):
+        """Return likely folder-name variants for a game name.
+
+        Mirrors Game Launcher's ``nameVariants``: the raw name plus common
+        transformations (strip illegal/title characters, drop subtitle after
+        ``:``/``-``, remove spaces, swap spaces for underscores). Short (<2
+        char) and duplicate variants are dropped.
+        """
+        raw = [name or ""]
+        out = []
+        seen = set()
+
+        def add(value):
+            value = str(value or "").strip()
+            if len(value) >= 2 and value not in seen:
+                seen.add(value)
+                out.append(value)
+
+        for item in raw:
+            s = str(item or "").strip()
+            if not s:
+                continue
+            add(s)
+            # Remove characters illegal in Windows folder names + punctuation.
+            add(re.sub(r'[:：\\/:*?"<>|]，,。！!', "", s).strip())
+            # Drop subtitle after ':' / '-' / en-dash / em-dash ("Only Wolves" etc.)
+            add(re.split(r"[:：\-–—]", s)[0].strip())
+            # Remove all whitespace, and replace whitespace with underscore.
+            add(re.sub(r"\s+", "", s))
+            add(re.sub(r"\s+", "_", s))
+        return out[:24]
+
+    @staticmethod
+    def _describe_dir(directory: Path):
+        """Shallow info for a directory: entry count + newest mtime (ms)."""
+        entries = 0
+        last = 0.0
+        try:
+            listing = list(directory.iterdir())
+            entries = len(listing)
+            for child in listing[:40]:
+                try:
+                    m = child.stat().st_mtime
+                    if m > last:
+                        last = m
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return entries, (int(last * 1000) if last else None)
+
+    async def detect_save_dirs(self, appid: str, name: str, prefix_path: str):
+        """Probe likely save folders for a game, Game-Launcher style.
+
+        Given a game's name / appid / Proton prefix, looks for save folders in
+        the places games typically use on a Steam Deck, in priority order:
+
+          1. Steam cloud      <steam>/userdata/<steamid>/<appid>[/remote]
+          2. Proton prefix    compatdata/<appid>/pfx/drive_c/users/<user>/
+                              (Documents, Documents/My Games, Saved Games,
+                               AppData/Roaming, AppData/Local, AppData/LocalLow)
+                              each combined with a name variant
+          3. Prefix root      common save sub-folders (save, saves, SaveData…)
+          4. Linux home       ~/.local/share, ~/.config, ~/Documents,
+                              ~/Saved Games, combined with a name variant
+
+        Only directories that actually exist are returned. Each result carries
+        a ``source`` (for UI grouping), ``exists``, ``entries`` (file count) and
+        ``lastModified`` (ms), sorted by source priority then newest-first.
+        """
+        results = []
+        seen = set()
+        source_order = {
+            "steam_cloud": 0,
+            "proton_user": 1,
+            "prefix": 2,
+            "linux_home": 3,
+        }
+        name_variants = self._name_variants(name)
+        appid = str(appid or "").strip()
+
+        def push(path: Path, source: str, force: bool = False):
+            if not path:
+                return
+            try:
+                norm = str(path)
+            except Exception:
+                return
+            key = norm.lower().rstrip("/")
+            if not key or key in seen:
+                return
+            is_dir = path.is_dir()
+            if not is_dir and not force:
+                return
+            seen.add(key)
+            entries, last = self._describe_dir(path) if is_dir else (0, None)
+            results.append({
+                "path": norm,
+                "source": source,
+                "exists": is_dir,
+                "entries": entries,
+                "lastModified": last,
+            })
+
+        # 1) Steam cloud saves.
+        if appid:
+            for steamapps in self._steam_steamapps_dirs():
+                userdata = steamapps.parent / "userdata"
+                if not userdata.is_dir():
+                    continue
+                try:
+                    for sid in userdata.iterdir():
+                        if not sid.is_dir() or not sid.name.isdigit():
+                            continue
+                        base = sid / appid
+                        push(base, "steam_cloud")
+                        push(base / "remote", "steam_cloud")
+                except Exception:
+                    pass
+
+        # 2) + 3) Inside the game's Proton prefix.
+        if prefix_path:
+            prefix = Path(prefix_path)
+            users_root = prefix / "pfx" / "drive_c" / "users"
+            user_dirs = []
+            if users_root.is_dir():
+                try:
+                    user_dirs = [u for u in users_root.iterdir() if u.is_dir()]
+                except Exception:
+                    user_dirs = []
+            proton_subdirs = [
+                "Documents",
+                os.path.join("Documents", "My Games"),
+                "Saved Games",
+                os.path.join("AppData", "Roaming"),
+                os.path.join("AppData", "Local"),
+                os.path.join("AppData", "LocalLow"),
+            ]
+            for user_dir in user_dirs:
+                for sub in proton_subdirs:
+                    base = user_dir / sub
+                    for variant in name_variants:
+                        push(base / variant, "proton_user")
+            for sub in (
+                "save", "saves", "SaveData", "SaveGames", "savegame",
+                "saved", "Saved Games", "Profile", "profiles",
+            ):
+                push(prefix / sub, "prefix")
+
+        # 4) Native Linux home locations.
+        home = Path.home()
+        for base, source in (
+            (home / ".local" / "share", "linux_home"),
+            (home / ".config", "linux_home"),
+            (home / "Documents", "linux_home"),
+            (home / "Saved Games", "linux_home"),
+        ):
+            for variant in name_variants:
+                push(base / variant, source)
+
+        results.sort(key=lambda r: (
+            source_order.get(r["source"], 9),
+            -(r["lastModified"] or 0),
+        ))
+        return results[:16]
+
     def _steam_steamapps_dirs(self):
         """
         Returns every known Steam ``steamapps`` directory (native + Flatpak),
@@ -232,8 +403,12 @@ class RcloneSetupManager:
         """
         home = Path.home()
         candidates = [
+            # Native Steam install (SteamOS default on Deck).
+            home / ".local" / "share" / "Steam" / "steamapps",
             home / ".steam" / "steam" / "steamapps",
+            # Flatpak Steam.
             home / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps",
+            home / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "Steam" / "steamapps",
         ]
         seen = set()
         result = []

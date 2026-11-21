@@ -300,6 +300,7 @@
 
     var sync$6 = "Sync";
     var configuration$6 = "Configuration";
+    var detecting$2 = "Detecting save folders...";
     var file$6 = "File";
     var folder$6 = "Folder";
     var back$2 = "Back";
@@ -327,7 +328,18 @@
     	"confirm.add.path": "Path {{path}} matches {{count}} file(s). Proceed?",
     	"select.path": "Select Path to Sync",
     	"manual.add": "Manual Add",
-    	"open.save.dir": "Open Save Directory",
+    	"open.save.dir": "Open Game Folder",
+    	"self.select.folder": "Select Folder Manually",
+    	"detect.saves": "Detect Saves",
+    	"steam.save.select.v2": "Pick a game, then choose to browse its folder manually or auto-detect likely save locations.",
+    	"detect.for": "Detecting save folders for {{name}}...",
+    	detecting: detecting$2,
+    	"no.save.dirs": "No existing save folders were detected. Try selecting the folder manually.",
+    	"save.files.unit": "files",
+    	"source.steam.cloud": "Steam Cloud",
+    	"source.proton.user": "Proton Prefix",
+    	"source.prefix": "Game Prefix",
+    	"source.linux.home": "Home Folder",
     	file: file$6,
     	folder: folder$6,
     	"folder.exclude": "Folder (exclude subfolders)",
@@ -616,6 +628,7 @@
 
     var sync$1 = "同步";
     var configuration$1 = "配置";
+    var detecting$1 = "正在探測存檔資料夾……";
     var file$1 = "檔案";
     var folder$1 = "資料夾";
     var back$1 = "返回";
@@ -643,7 +656,18 @@
     	"confirm.add.path": "路徑 {{path}} 對應 {{count}} 個檔案。繼續？",
     	"select.path": "選擇要同步的路徑",
     	"manual.add": "手動添加",
-    	"open.save.dir": "開啟存檔目錄",
+    	"open.save.dir": "開啟遊戲資料夾",
+    	"self.select.folder": "自選資料夾",
+    	"detect.saves": "存檔探測",
+    	"steam.save.select.v2": "選擇一個遊戲，可自選資料夾瀏覽，或讓外掛自動探測可能的存檔位置。",
+    	"detect.for": "正在為 {{name}} 探測存檔資料夾……",
+    	detecting: detecting$1,
+    	"no.save.dirs": "未探測到已存在的存檔資料夾，請改用「自選資料夾」手動選擇。",
+    	"save.files.unit": "個檔案",
+    	"source.steam.cloud": "Steam 雲存檔",
+    	"source.proton.user": "Proton 使用者目錄",
+    	"source.prefix": "遊戲前綴目錄",
+    	"source.linux.home": "使用者主目錄",
     	file: file$1,
     	folder: folder$1,
     	"folder.exclude": "資料夾 (排除子資料夾)",
@@ -704,6 +728,7 @@
 
     var sync = "同步";
     var configuration = "配置";
+    var detecting = "正在探测存档文件夹……";
     var file = "文件";
     var folder = "文件夹";
     var back = "返回";
@@ -731,7 +756,18 @@
     	"confirm.add.path": "路径 {{path}} 匹配 {{count}} 个文件，是否继续？",
     	"select.path": "选择要同步的路径",
     	"manual.add": "手动添加",
-    	"open.save.dir": "打开存档目录",
+    	"open.save.dir": "打开游戏文件夹",
+    	"self.select.folder": "自选文件夹",
+    	"detect.saves": "存档探测",
+    	"steam.save.select.v2": "选择一个游戏，可自选文件夹浏览，或让插件自动探测可能的存档位置。",
+    	"detect.for": "正在为 {{name}} 探测存档文件夹……",
+    	detecting: detecting,
+    	"no.save.dirs": "未探测到已存在的存档文件夹，请改用「自选文件夹」手动选择。",
+    	"save.files.unit": "个文件",
+    	"source.steam.cloud": "Steam 云存档",
+    	"source.proton.user": "Proton 用户目录",
+    	"source.prefix": "游戏前缀目录",
+    	"source.linux.home": "用户主目录",
     	file: file,
     	folder: folder,
     	"folder.exclude": "文件夹（排除子文件夹）",
@@ -1601,17 +1637,31 @@
                 }
             })();
         }, [serverApi]);
+        // Picking a game now offers two independent actions:
+        //   1. Browse manually into its Proton prefix (the original flow).
+        //   2. Auto-detect likely save folders from the game's name (Game-Launcher style).
         const onPickGame = (game) => {
+            // Stash everything both flows need before navigating away.
             Storage.setSessionStorageItem("steamBrowseStart", game.path);
             Storage.setSessionStorageItem("steamSaveTarget", targetFile);
-            deckyFrontendLib.Navigation.CloseSideMenus();
-            deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse");
+            Storage.setSessionStorageItem("steamGameName", game.name);
+            Storage.setSessionStorageItem("steamGameAppid", game.appid);
+            Storage.setSessionStorageItem("steamGamePrefix", game.path);
+            deckyFrontendLib.showContextMenu(window.SP_REACT.createElement(deckyFrontendLib.Menu, { label: game.name },
+                window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => {
+                        deckyFrontendLib.Navigation.CloseSideMenus();
+                        deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse");
+                    } }, Translator.translate("self.select.folder")),
+                window.SP_REACT.createElement(deckyFrontendLib.MenuItem, { onSelected: () => {
+                        deckyFrontendLib.Navigation.CloseSideMenus();
+                        deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-detect");
+                    } }, Translator.translate("detect.saves"))));
         };
         return (window.SP_REACT.createElement(Container, { title: Translator.translate("steam.saves") },
             window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
                 window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                     window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.NavigateBack() }, Translator.translate("back"))),
-                window.SP_REACT.createElement("small", null, Translator.translate("steam.save.select"))),
+                window.SP_REACT.createElement("small", null, Translator.translate("steam.save.select.v2"))),
             games === undefined && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                 window.SP_REACT.createElement("small", null, Translator.translate("loading.games")))),
             games && games.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -1698,6 +1748,101 @@
                 window.SP_REACT.createElement(SelectableRow, { title: e.name, subtitle: e.is_dir ? Translator.translate("folder") : Translator.translate("file"), right: e.is_dir ? (window.SP_REACT.createElement(HighlightButton, null, "\u203A")) : (window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select"))), onClick: () => (e.is_dir ? setCurrentPath(e.path) : selectPath(e.path, false)) }))))));
     }
 
+    const SOURCE_KEYS = {
+        steam_cloud: "source.steam.cloud",
+        proton_user: "source.proton.user",
+        prefix: "source.prefix",
+        linux_home: "source.linux.home",
+    };
+    function formatTime(ms) {
+        if (!ms)
+            return "";
+        try {
+            const d = new Date(ms);
+            return d.toLocaleDateString();
+        }
+        catch (e) {
+            return "";
+        }
+    }
+    /**
+     * Game-Launcher style save detection. Given the game picked on the previous
+     * page, asks the backend to probe likely save folders by name and lists the
+     * results. Selecting one runs the usual test_syncpath + confirm + add flow.
+     */
+    function ConfigureSteamDetectPage({ serverApi }) {
+        const targetFile = Storage.getSessionStorageItem("steamSaveTarget") || "includes";
+        const gameName = Storage.getSessionStorageItem("steamGameName") || "";
+        const appid = Storage.getSessionStorageItem("steamGameAppid") || "";
+        const prefix = Storage.getSessionStorageItem("steamGamePrefix") || "";
+        const [dirs, setDirs] = React.useState(undefined);
+        const [error, setError] = React.useState(undefined);
+        React.useEffect(() => {
+            (async () => {
+                setDirs(undefined);
+                setError(undefined);
+                try {
+                    const res = await serverApi.callPluginMethod("detect_save_dirs", { appid, name: gameName, prefix_path: prefix });
+                    if (res.success) {
+                        setDirs(res.result);
+                    }
+                    else {
+                        setError(String(res.result));
+                        setDirs([]);
+                    }
+                }
+                catch (e) {
+                    setError(String(e));
+                    setDirs([]);
+                }
+            })();
+        }, [appid, gameName, prefix, serverApi]);
+        // Selecting a detected folder adds it (recursively) via the standard flow.
+        const selectDir = (path) => {
+            const full = `${path}/**`;
+            serverApi
+                .callPluginMethod("test_syncpath", { path: full })
+                .then((r) => {
+                if (!r.success) {
+                    Toast.toast(r.result);
+                    return;
+                }
+                deckyFrontendLib.showModal(window.SP_REACT.createElement(deckyFrontendLib.ConfirmModal, { strTitle: Translator.translate("confirm.add"), strDescription: Translator.translate("confirm.add.path", { "path": full, "count": r.result }), onOK: () => {
+                        serverApi
+                            .callPluginMethod("add_syncpath", { path: full, file: targetFile })
+                            .then(() => {
+                            Toast.toast(Translator.translate("added.path", {
+                                "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes"),
+                            }));
+                            deckyFrontendLib.Navigation.NavigateBack();
+                        })
+                            .catch((e) => Toast.toast(e));
+                    } }));
+            })
+                .catch((e) => Toast.toast(e));
+        };
+        return (window.SP_REACT.createElement(Container, { title: Translator.translate("detect.saves") },
+            window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.NavigateBack() }, Translator.translate("back"))),
+                window.SP_REACT.createElement("small", { style: { display: "block", wordBreak: "break-all" } }, Translator.translate("detect.for", { "name": gameName }))),
+            dirs === undefined && (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                window.SP_REACT.createElement("small", null, Translator.translate("detecting")))),
+            dirs && dirs.length === 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement("small", null, error ? error : Translator.translate("no.save.dirs"))),
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse") }, Translator.translate("self.select.folder"))))),
+            dirs?.map((d) => {
+                const sourceLabel = Translator.translate(SOURCE_KEYS[d.source] || d.source);
+                const meta = [sourceLabel, `${d.entries} ${Translator.translate("save.files.unit")}`, formatTime(d.lastModified)]
+                    .filter(Boolean)
+                    .join(" · ");
+                return (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: d.path },
+                    window.SP_REACT.createElement(SelectableRow, { title: d.path, subtitle: meta, right: window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select")), onClick: () => selectDir(d.path) })));
+            })));
+    }
+
     function RenderSyncLogPage$1() {
         deckyFrontendLib.Navigation.CloseSideMenus();
         const [logs, _] = React.useState(() => Storage.getSessionStorageItem("syncLogs")?.replace(/\n{2,}/g, "\n") ?? "");
@@ -1735,6 +1880,7 @@
         serverApi.routerHook.addRoute("/dcs-configure-backend", () => window.SP_REACT.createElement(ConfigureBackendPage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-configure-steam-saves", () => window.SP_REACT.createElement(ConfigureSteamSavePage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-configure-steam-browse", () => window.SP_REACT.createElement(ConfigureSteamBrowsePage, { serverApi: serverApi }), { exact: true });
+        serverApi.routerHook.addRoute("/dcs-configure-steam-detect", () => window.SP_REACT.createElement(ConfigureSteamDetectPage, { serverApi: serverApi }), { exact: true });
         serverApi.routerHook.addRoute("/dcs-sync-logs", () => window.SP_REACT.createElement(RenderSyncLogPage$1, null), { exact: true });
         serverApi.routerHook.addRoute("/dcs-plugin-logs", () => window.SP_REACT.createElement(RenderSyncLogPage, null), { exact: true });
         const { unregister: removeGameExecutionListener } = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((e) => {
@@ -1762,6 +1908,7 @@
                 serverApi.routerHook.removeRoute("/dcs-configure-backend");
                 serverApi.routerHook.removeRoute("/dcs-configure-steam-saves");
                 serverApi.routerHook.removeRoute("/dcs-configure-steam-browse");
+                serverApi.routerHook.removeRoute("/dcs-configure-steam-detect");
                 serverApi.routerHook.removeRoute("/dcs-sync-logs");
                 serverApi.routerHook.removeRoute("/dcs-plugin-logs");
             },
