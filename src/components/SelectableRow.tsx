@@ -15,11 +15,13 @@ export default function SelectableRow({
   subtitle,
   right,
   onClick,
+  wrapTitle,
 }: {
   title: string;
   subtitle?: string;
   right?: ReactNode;
   onClick: () => void;
+  wrapTitle?: boolean;
 }) {
   return (
     <ButtonItem
@@ -40,8 +42,10 @@ export default function SelectableRow({
               fontSize: "14px",
               fontWeight: 600,
               overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              textOverflow: wrapTitle ? "clip" : "ellipsis",
+              whiteSpace: wrapTitle ? "normal" : "nowrap",
+              wordBreak: wrapTitle ? "break-all" : undefined,
+              lineHeight: wrapTitle ? "1.35" : undefined,
             }}
           >
             {title}

@@ -281,48 +281,68 @@ class RcloneSetupManager:
         return entries, (int(last * 1000) if last else None)
 
     async def detect_save_dirs(self, appid: str, name: str, prefix_path: str):
-        """Detect likely save folders *only* inside the selected game's prefix.
+        """List candidate save folders *only* inside the selected game's prefix.
 
         On Steam Deck a Windows game's saves live under its Proton prefix at
-        ``compatdata/<appid>/pfx/drive_c/users/steamuser/``. We do NOT scan
-        Steam cloud, the Linux home, or other game prefixes — results are
-        restricted to this one game's prefix so nothing unrelated is offered.
+        ``compatdata/<appid>/pfx/drive_c/users/steamuser/``. We never scan Steam
+        cloud, the Linux home, or other game prefixes — every result is inside
+        this one game's prefix.
 
-        Inside that user folder we look in the usual Windows save locations
-        (Documents, Documents/My Games, Saved Games, AppData/{Roaming,Local,
-        LocalLow}) combined with variants of the game name, plus generic save
-        sub-folders (save, saves, SaveData…) and name-named folders directly
-        under the user folder.
+        To show plenty of useful candidates, we enumerate the first-level
+        sub-folders of every common Windows save location (Documents,
+        Documents/My Games, Saved Games, AppData/{Roaming,Local,LocalLow}) plus
+        the user folder root. Folders whose name matches a variant of the game
+        name are tagged ``name_match`` and ranked first; the rest are tagged by
+        where they were found. The user can then drill into any candidate via
+        the folder browser to pick the exact save folder.
 
         Only directories that actually exist are returned. Each result carries
-        a ``source`` (for UI grouping), ``exists``, ``entries`` (file count) and
-        ``lastModified`` (ms), sorted by source priority then newest-first.
+        ``path``, ``source``, ``entries`` (file count) and ``lastModified`` (ms),
+        sorted by source priority then newest-first.
         """
         results = []
         seen = set()
         source_order = {
-            "proton_user": 0,
-            "generic": 1,
-            "user_root": 2,
+            "name_match": 0,
+            "common_location": 1,
+            "generic": 2,
+            "user_root": 3,
         }
         name_variants = self._name_variants(name)
+
+        def norm(value: str) -> str:
+            return re.sub(r"[\s_\-]+", "", str(value or "")).lower()
+
+        variant_norms = {norm(v) for v in name_variants if len(norm(v)) >= 2}
+
+        def is_name_match(dirname: str) -> bool:
+            n = norm(dirname)
+            if not n:
+                return False
+            if n in variant_norms:
+                return True
+            # Also match when one is a clear prefix of the other (e.g. game
+            # "Hollow Knight" vs folder "Hollow Knight Silksong"), but require
+            # a reasonable length to avoid wild false positives.
+            for v in variant_norms:
+                if len(n) >= 4 and len(v) >= 4 and (n.startswith(v) or v.startswith(n)):
+                    return True
+            return False
 
         def push(path: Path, source: str):
             if not path:
                 return
             try:
-                norm = str(path)
+                norm_path = str(path)
             except Exception:
                 return
-            key = norm.lower().rstrip("/")
-            if not key or key in seen:
-                return
-            if not path.is_dir():
+            key = norm_path.lower().rstrip("/")
+            if not key or key in seen or not path.is_dir():
                 return
             seen.add(key)
             entries, last = self._describe_dir(path)
             results.append({
-                "path": norm,
+                "path": norm_path,
                 "source": source,
                 "exists": True,
                 "entries": entries,
@@ -349,23 +369,35 @@ class RcloneSetupManager:
             except Exception:
                 pass
 
-        # Windows-style save locations, combined with game-name variants.
-        proton_subdirs = [
+        # Common Windows save locations (relative to the user folder). For
+        # each, list all first-level sub-folders so the user sees real options,
+        # not just exact name matches.
+        common_roots = [
+            "AppData/Roaming",
+            "AppData/Local",
+            "AppData/LocalLow",
+            "Documents/My Games",
             "Documents",
-            os.path.join("Documents", "My Games"),
             "Saved Games",
-            os.path.join("AppData", "Roaming"),
-            os.path.join("AppData", "Local"),
-            os.path.join("AppData", "LocalLow"),
         ]
+        max_per_root = 20
         for user_dir in user_dirs:
-            for sub in proton_subdirs:
-                base = user_dir / sub
-                for variant in name_variants:
-                    push(base / variant, "proton_user")
+            for rel in common_roots:
+                base = user_dir / rel
+                if not base.is_dir():
+                    continue
+                try:
+                    children = [c for c in base.iterdir() if c.is_dir()]
+                except Exception:
+                    continue
+                # Newest first, then cap, so the most recently touched folders
+                # (most likely real saves) are the ones we surface.
+                children.sort(key=lambda c: -c.stat().st_mtime if c.exists() else 0)
+                for child in children[:max_per_root]:
+                    push(child, "name_match" if is_name_match(child.name) else "common_location")
 
-        # Generic save folder names and game-named folders, directly under the
-        # user folder (covers games that write straight into the profile root).
+        # Generic save-named folders and game-named folders directly under the
+        # user folder (games that write straight into the profile root).
         generic_names = (
             "save", "saves", "SaveData", "SaveGames", "savegame",
             "saved", "Saved Games", "Profile", "profiles",
@@ -373,14 +405,18 @@ class RcloneSetupManager:
         for user_dir in user_dirs:
             for sub in generic_names:
                 push(user_dir / sub, "generic")
-            for variant in name_variants:
-                push(user_dir / variant, "user_root")
+            try:
+                for child in user_dir.iterdir():
+                    if child.is_dir():
+                        push(child, "name_match" if is_name_match(child.name) else "user_root")
+            except Exception:
+                pass
 
         results.sort(key=lambda r: (
             source_order.get(r["source"], 9),
             -(r["lastModified"] or 0),
         ))
-        return results[:16]
+        return results[:40]
 
     def _steam_steamapps_dirs(self):
         """

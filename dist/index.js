@@ -336,8 +336,9 @@
     	detecting: detecting$2,
     	"no.save.dirs": "No existing save folders were detected. Try selecting the folder manually.",
     	"save.files.unit": "files",
-    	"source.proton.user": "User Folders",
-    	"source.generic": "Common Save Folders",
+    	"source.name.match": "Game Name Match",
+    	"source.common.location": "Common Save Location",
+    	"source.generic": "Common Save Folder",
     	"source.user.root": "Profile Root",
     	file: file$6,
     	folder: folder$6,
@@ -663,7 +664,8 @@
     	detecting: detecting$1,
     	"no.save.dirs": "未探測到已存在的存檔資料夾，請改用「自選資料夾」手動選擇。",
     	"save.files.unit": "個檔案",
-    	"source.proton.user": "使用者存檔目錄",
+    	"source.name.match": "遊戲名匹配",
+    	"source.common.location": "常見存檔位置",
     	"source.generic": "常見存檔目錄",
     	"source.user.root": "使用者目錄根",
     	file: file$1,
@@ -762,7 +764,8 @@
     	detecting: detecting,
     	"no.save.dirs": "未探测到已存在的存档文件夹，请改用「自选文件夹」手动选择。",
     	"save.files.unit": "个文件",
-    	"source.proton.user": "用户存档目录",
+    	"source.name.match": "游戏名匹配",
+    	"source.common.location": "常见存档位置",
     	"source.generic": "常见存档目录",
     	"source.user.root": "用户目录根",
     	file: file,
@@ -1574,7 +1577,7 @@
      * bar, and the selectable action is surfaced as a highlighted pill on the
      * right side (passed via `right`).
      */
-    function SelectableRow({ title, subtitle, right, onClick, }) {
+    function SelectableRow({ title, subtitle, right, onClick, wrapTitle, }) {
         return (window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { bottomSeparator: "none", highlightOnFocus: true, onClick: onClick, label: window.SP_REACT.createElement("div", { style: {
                     display: "flex",
                     flexDirection: "column",
@@ -1585,8 +1588,10 @@
                         fontSize: "14px",
                         fontWeight: 600,
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        textOverflow: wrapTitle ? "clip" : "ellipsis",
+                        whiteSpace: wrapTitle ? "normal" : "nowrap",
+                        wordBreak: wrapTitle ? "break-all" : undefined,
+                        lineHeight: wrapTitle ? "1.35" : undefined,
                     } }, title),
                 subtitle && (window.SP_REACT.createElement("span", { style: { fontSize: "12px", opacity: 0.6, marginTop: "2px" } }, subtitle))) }, right));
     }
@@ -1746,7 +1751,8 @@
     }
 
     const SOURCE_KEYS = {
-        proton_user: "source.proton.user",
+        name_match: "source.name.match",
+        common_location: "source.common.location",
         generic: "source.generic",
         user_root: "source.user.root",
     };
@@ -1754,8 +1760,7 @@
         if (!ms)
             return "";
         try {
-            const d = new Date(ms);
-            return d.toLocaleDateString();
+            return new Date(ms).toLocaleDateString();
         }
         catch (e) {
             return "";
@@ -1763,11 +1768,11 @@
     }
     /**
      * Game-Launcher style save detection. Given the game picked on the previous
-     * page, asks the backend to probe likely save folders by name and lists the
-     * results. Selecting one runs the usual test_syncpath + confirm + add flow.
+     * page, lists likely save folders found inside that game's own Proton prefix.
+     * Selecting a candidate opens the folder browser rooted at that folder so the
+     * user can drill further and pick the exact save folder/file to sync.
      */
     function ConfigureSteamDetectPage({ serverApi }) {
-        const targetFile = Storage.getSessionStorageItem("steamSaveTarget") || "includes";
         const gameName = Storage.getSessionStorageItem("steamGameName") || "";
         const appid = Storage.getSessionStorageItem("steamGameAppid") || "";
         const prefix = Storage.getSessionStorageItem("steamGamePrefix") || "";
@@ -1793,29 +1798,12 @@
                 }
             })();
         }, [appid, gameName, prefix, serverApi]);
-        // Selecting a detected folder adds it (recursively) via the standard flow.
-        const selectDir = (path) => {
-            const full = `${path}/**`;
-            serverApi
-                .callPluginMethod("test_syncpath", { path: full })
-                .then((r) => {
-                if (!r.success) {
-                    Toast.toast(r.result);
-                    return;
-                }
-                deckyFrontendLib.showModal(window.SP_REACT.createElement(deckyFrontendLib.ConfirmModal, { strTitle: Translator.translate("confirm.add"), strDescription: Translator.translate("confirm.add.path", { "path": full, "count": r.result }), onOK: () => {
-                        serverApi
-                            .callPluginMethod("add_syncpath", { path: full, file: targetFile })
-                            .then(() => {
-                            Toast.toast(Translator.translate("added.path", {
-                                "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes"),
-                            }));
-                            deckyFrontendLib.Navigation.NavigateBack();
-                        })
-                            .catch((e) => Toast.toast(e));
-                    } }));
-            })
-                .catch((e) => Toast.toast(e));
+        // Open the browser rooted at the candidate so the user can keep drilling
+        // into sub-folders (and use "Select this folder" there to add it).
+        const openDir = (path) => {
+            Storage.setSessionStorageItem("steamBrowseStart", path);
+            deckyFrontendLib.Navigation.CloseSideMenus();
+            deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse");
         };
         return (window.SP_REACT.createElement(Container, { title: Translator.translate("detect.saves") },
             window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
@@ -1835,7 +1823,7 @@
                     .filter(Boolean)
                     .join(" · ");
                 return (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: d.path },
-                    window.SP_REACT.createElement(SelectableRow, { title: d.path, subtitle: meta, right: window.SP_REACT.createElement(HighlightButton, null, Translator.translate("select")), onClick: () => selectDir(d.path) })));
+                    window.SP_REACT.createElement(SelectableRow, { title: d.path, subtitle: meta, wrapTitle: true, right: window.SP_REACT.createElement(HighlightButton, null, "\u203A"), onClick: () => openDir(d.path) })));
             })));
     }
 

@@ -1,10 +1,9 @@
-import { ButtonItem, ConfirmModal, Navigation, PanelSection, PanelSectionRow, showModal } from "decky-frontend-lib";
+import { ButtonItem, Navigation, PanelSection, PanelSectionRow } from "decky-frontend-lib";
 import { useEffect, useState } from "react";
 import Container from "../components/Container";
 import SelectableRow, { HighlightButton } from "../components/SelectableRow";
 import { PageProps } from "../helpers/types";
 import { Storage } from "../helpers/storage";
-import { Toast } from "../helpers/toast";
 import { Translator } from "../helpers/translator";
 
 type SaveDir = {
@@ -16,7 +15,8 @@ type SaveDir = {
 };
 
 const SOURCE_KEYS: Record<string, string> = {
-  proton_user: "source.proton.user",
+  name_match: "source.name.match",
+  common_location: "source.common.location",
   generic: "source.generic",
   user_root: "source.user.root",
 };
@@ -24,8 +24,7 @@ const SOURCE_KEYS: Record<string, string> = {
 function formatTime(ms: number | null): string {
   if (!ms) return "";
   try {
-    const d = new Date(ms);
-    return d.toLocaleDateString();
+    return new Date(ms).toLocaleDateString();
   } catch (e) {
     return "";
   }
@@ -33,11 +32,11 @@ function formatTime(ms: number | null): string {
 
 /**
  * Game-Launcher style save detection. Given the game picked on the previous
- * page, asks the backend to probe likely save folders by name and lists the
- * results. Selecting one runs the usual test_syncpath + confirm + add flow.
+ * page, lists likely save folders found inside that game's own Proton prefix.
+ * Selecting a candidate opens the folder browser rooted at that folder so the
+ * user can drill further and pick the exact save folder/file to sync.
  */
 export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
-  const targetFile = (Storage.getSessionStorageItem("steamSaveTarget") as "includes" | "excludes") || "includes";
   const gameName = Storage.getSessionStorageItem("steamGameName") || "";
   const appid = Storage.getSessionStorageItem("steamGameAppid") || "";
   const prefix = Storage.getSessionStorageItem("steamGamePrefix") || "";
@@ -67,39 +66,12 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
     })();
   }, [appid, gameName, prefix, serverApi]);
 
-  // Selecting a detected folder adds it (recursively) via the standard flow.
-  const selectDir = (path: string) => {
-    const full = `${path}/**`;
-    serverApi
-      .callPluginMethod<{ path: string }, number>("test_syncpath", { path: full })
-      .then((r) => {
-        if (!r.success) {
-          Toast.toast(r.result);
-          return;
-        }
-        showModal(
-          <ConfirmModal
-            strTitle={Translator.translate("confirm.add")}
-            strDescription={Translator.translate("confirm.add.path", { "path": full, "count": r.result })}
-            onOK={() => {
-              serverApi
-                .callPluginMethod<{ path: string; file: "includes" | "excludes" }, void>(
-                  "add_syncpath", { path: full, file: targetFile }
-                )
-                .then(() => {
-                  Toast.toast(
-                    Translator.translate("added.path", {
-                      "file": targetFile === "includes" ? Translator.translate("includes") : Translator.translate("excludes"),
-                    })
-                  );
-                  Navigation.NavigateBack();
-                })
-                .catch((e) => Toast.toast(e));
-            }}
-          />
-        );
-      })
-      .catch((e) => Toast.toast(e));
+  // Open the browser rooted at the candidate so the user can keep drilling
+  // into sub-folders (and use "Select this folder" there to add it).
+  const openDir = (path: string) => {
+    Storage.setSessionStorageItem("steamBrowseStart", path);
+    Navigation.CloseSideMenus();
+    Navigation.Navigate("/dcs-configure-steam-browse");
   };
 
   return (
@@ -147,8 +119,9 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
             <SelectableRow
               title={d.path}
               subtitle={meta}
-              right={<HighlightButton>{Translator.translate("select")}</HighlightButton>}
-              onClick={() => selectDir(d.path)}
+              wrapTitle
+              right={<HighlightButton>›</HighlightButton>}
+              onClick={() => openDir(d.path)}
             />
           </PanelSectionRow>
         );
