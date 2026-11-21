@@ -82,6 +82,11 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
             {Translator.translate("back")}
           </ButtonItem>
         </PanelSectionRow>
+        <small
+          style={{ display: "block", wordBreak: "break-all", marginBottom: 6 }}
+        >
+          {Translator.translate("detect.hint")}
+        </small>
         <small style={{ display: "block", wordBreak: "break-all" }}>
           {Translator.translate("detect.for", { "name": gameName })}
         </small>

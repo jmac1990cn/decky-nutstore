@@ -21,6 +21,7 @@
     "open.save.dir": "開啟遊戲資料夾",
     "self.select.folder": "自選資料夾",
     "detect.saves": "存檔探測",
+    "detect.hint": "以下資料夾為大多數遊戲常用存檔目錄，請手動確認",
     "steam.save.select.v2": "選擇一個遊戲，可自選資料夾瀏覽，或讓外掛自動探測可能的存檔位置。",
     "detect.for": "正在 {{name}} 自身的遊戲資料夾內尋找存檔（pfx/drive_c/users/steamuser/）……",
     "detecting": "正在探測存檔資料夾……",

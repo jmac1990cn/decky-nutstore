@@ -21,6 +21,7 @@
     "open.save.dir": "Open Game Folder",
     "self.select.folder": "Select Folder Manually",
     "detect.saves": "Detect Saves",
+    "detect.hint": "The folders below are common save locations for most games. Please confirm manually.",
     "steam.save.select.v2": "Pick a game, then choose to browse its folder manually or auto-detect likely save locations.",
     "detect.for": "Searching {{name}}'s own game folder (pfx/drive_c/users/steamuser/) for saves...",
     "detecting": "Detecting save folders...",
