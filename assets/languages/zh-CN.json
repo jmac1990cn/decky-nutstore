@@ -27,6 +27,8 @@
     "detecting": "正在探测存档文件夹……",
     "no.save.dirs": "未探测到已存在的存档文件夹，请改用「自选文件夹」手动选择。",
     "save.files.unit": "个文件",
+    "show.empty.folders": "显示 {{count}} 个空文件夹",
+    "hide.empty.folders": "收起空文件夹",
     "source.name.match": "游戏名匹配",
     "source.common.location": "常见存档位置",
     "source.generic": "常见存档目录",

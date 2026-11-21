@@ -315,6 +315,21 @@ class RcloneSetupManager:
 
         variant_norms = {norm(v) for v in name_variants if len(norm(v)) >= 2}
 
+        # Standard Windows profile folders that are never game saves. Filter
+        # them out wherever they surface (user root, AppData, Documents, ...).
+        # Names are normalized the same way as the game names above so casing,
+        # spaces, underscores and hyphens do not matter.
+        ignored_dir_norms = {
+            norm(n) for n in (
+                "Microsoft", "Temp", "Tmp", "Downloads", "Download",
+                "Videos", "Video", "Templates", "Template", "Pictures",
+                "Picture", "Music", "Desktop", "Contacts", "Favorites",
+                "Links", "Searches", "3D Objects", "OneDrive",
+                "$Recycle.Bin", "AppData", "Program Files", "Windows",
+                "System32",
+            )
+        }
+
         def is_name_match(dirname: str) -> bool:
             n = norm(dirname)
             if not n:
@@ -331,6 +346,10 @@ class RcloneSetupManager:
 
         def push(path: Path, source: str):
             if not path:
+                return
+            # Never surface Windows system/profile folders (Microsoft, Temp,
+            # Downloads, Videos, Templates, Pictures, Music, ...) as saves.
+            if norm(path.name) in ignored_dir_norms:
                 return
             try:
                 norm_path = str(path)
@@ -364,7 +383,9 @@ class RcloneSetupManager:
         if users_root.is_dir():
             try:
                 for u in users_root.iterdir():
-                    if u.is_dir() and u != steamuser:
+                    # "Public" is a shared Windows profile, not a game user;
+                    # skip it so none of its folders appear in the results.
+                    if u.is_dir() and u != steamuser and norm(u.name) != "public":
                         user_dirs.append(u)
             except Exception:
                 pass

@@ -43,6 +43,7 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
 
   const [dirs, setDirs] = useState<SaveDir[] | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [showEmpty, setShowEmpty] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -73,6 +74,29 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
     Navigation.CloseSideMenus();
     Navigation.Navigate("/dcs-configure-steam-browse");
   };
+
+  const renderRow = (d: SaveDir) => {
+    const sourceLabel = Translator.translate(SOURCE_KEYS[d.source] || d.source);
+    const meta = [sourceLabel, `${d.entries} ${Translator.translate("save.files.unit")}`, formatTime(d.lastModified)]
+      .filter(Boolean)
+      .join(" · ");
+    return (
+      <PanelSectionRow key={d.path}>
+        <SelectableRow
+          title={d.path}
+          subtitle={meta}
+          wrapTitle
+          right={<HighlightButton>›</HighlightButton>}
+          onClick={() => openDir(d.path)}
+        />
+      </PanelSectionRow>
+    );
+  };
+
+  // Folders with zero entries are unlikely saves — collapse them behind a
+  // toggle so the useful candidates stay front and center.
+  const populated = dirs?.filter((d) => d.entries > 0) ?? [];
+  const empty = dirs?.filter((d) => d.entries === 0) ?? [];
 
   return (
     <Container title={Translator.translate("detect.saves")}>
@@ -114,23 +138,20 @@ export default function ConfigureSteamDetectPage({ serverApi }: PageProps<{}>) {
         </PanelSection>
       )}
 
-      {dirs?.map((d) => {
-        const sourceLabel = Translator.translate(SOURCE_KEYS[d.source] || d.source);
-        const meta = [sourceLabel, `${d.entries} ${Translator.translate("save.files.unit")}`, formatTime(d.lastModified)]
-          .filter(Boolean)
-          .join(" · ");
-        return (
-          <PanelSectionRow key={d.path}>
-            <SelectableRow
-              title={d.path}
-              subtitle={meta}
-              wrapTitle
-              right={<HighlightButton>›</HighlightButton>}
-              onClick={() => openDir(d.path)}
-            />
+      {populated.map(renderRow)}
+
+      {empty.length > 0 && (
+        <PanelSection>
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={() => setShowEmpty((v) => !v)}>
+              {showEmpty
+                ? Translator.translate("hide.empty.folders")
+                : Translator.translate("show.empty.folders", { "count": empty.length })}
+            </ButtonItem>
           </PanelSectionRow>
-        );
-      })}
+          {showEmpty && empty.map(renderRow)}
+        </PanelSection>
+      )}
     </Container>
   );
 }

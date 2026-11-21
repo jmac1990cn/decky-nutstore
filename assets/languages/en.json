@@ -27,6 +27,8 @@
     "detecting": "Detecting save folders...",
     "no.save.dirs": "No existing save folders were detected. Try selecting the folder manually.",
     "save.files.unit": "files",
+    "show.empty.folders": "Show {{count}} empty folders",
+    "hide.empty.folders": "Hide empty folders",
     "source.name.match": "Game Name Match",
     "source.common.location": "Common Save Location",
     "source.generic": "Common Save Folder",

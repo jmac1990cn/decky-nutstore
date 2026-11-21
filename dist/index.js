@@ -337,6 +337,8 @@
     	detecting: detecting$2,
     	"no.save.dirs": "No existing save folders were detected. Try selecting the folder manually.",
     	"save.files.unit": "files",
+    	"show.empty.folders": "Show {{count}} empty folders",
+    	"hide.empty.folders": "Hide empty folders",
     	"source.name.match": "Game Name Match",
     	"source.common.location": "Common Save Location",
     	"source.generic": "Common Save Folder",
@@ -666,6 +668,8 @@
     	detecting: detecting$1,
     	"no.save.dirs": "未探測到已存在的存檔資料夾，請改用「自選資料夾」手動選擇。",
     	"save.files.unit": "個檔案",
+    	"show.empty.folders": "顯示 {{count}} 個空資料夾",
+    	"hide.empty.folders": "收起空資料夾",
     	"source.name.match": "遊戲名匹配",
     	"source.common.location": "常見存檔位置",
     	"source.generic": "常見存檔目錄",
@@ -767,6 +771,8 @@
     	detecting: detecting,
     	"no.save.dirs": "未探测到已存在的存档文件夹，请改用「自选文件夹」手动选择。",
     	"save.files.unit": "个文件",
+    	"show.empty.folders": "显示 {{count}} 个空文件夹",
+    	"hide.empty.folders": "收起空文件夹",
     	"source.name.match": "游戏名匹配",
     	"source.common.location": "常见存档位置",
     	"source.generic": "常见存档目录",
@@ -1781,6 +1787,7 @@
         const prefix = Storage.getSessionStorageItem("steamGamePrefix") || "";
         const [dirs, setDirs] = React.useState(undefined);
         const [error, setError] = React.useState(undefined);
+        const [showEmpty, setShowEmpty] = React.useState(false);
         React.useEffect(() => {
             (async () => {
                 setDirs(undefined);
@@ -1808,6 +1815,18 @@
             deckyFrontendLib.Navigation.CloseSideMenus();
             deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse");
         };
+        const renderRow = (d) => {
+            const sourceLabel = Translator.translate(SOURCE_KEYS[d.source] || d.source);
+            const meta = [sourceLabel, `${d.entries} ${Translator.translate("save.files.unit")}`, formatTime(d.lastModified)]
+                .filter(Boolean)
+                .join(" · ");
+            return (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: d.path },
+                window.SP_REACT.createElement(SelectableRow, { title: d.path, subtitle: meta, wrapTitle: true, right: window.SP_REACT.createElement(HighlightButton, null, "\u203A"), onClick: () => openDir(d.path) })));
+        };
+        // Folders with zero entries are unlikely saves — collapse them behind a
+        // toggle so the useful candidates stay front and center.
+        const populated = dirs?.filter((d) => d.entries > 0) ?? [];
+        const empty = dirs?.filter((d) => d.entries === 0) ?? [];
         return (window.SP_REACT.createElement(Container, { title: Translator.translate("detect.saves") },
             window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
                 window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
@@ -1821,14 +1840,13 @@
                     window.SP_REACT.createElement("small", null, error ? error : Translator.translate("no.save.dirs"))),
                 window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
                     window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => deckyFrontendLib.Navigation.Navigate("/dcs-configure-steam-browse") }, Translator.translate("self.select.folder"))))),
-            dirs?.map((d) => {
-                const sourceLabel = Translator.translate(SOURCE_KEYS[d.source] || d.source);
-                const meta = [sourceLabel, `${d.entries} ${Translator.translate("save.files.unit")}`, formatTime(d.lastModified)]
-                    .filter(Boolean)
-                    .join(" · ");
-                return (window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, { key: d.path },
-                    window.SP_REACT.createElement(SelectableRow, { title: d.path, subtitle: meta, wrapTitle: true, right: window.SP_REACT.createElement(HighlightButton, null, "\u203A"), onClick: () => openDir(d.path) })));
-            })));
+            populated.map(renderRow),
+            empty.length > 0 && (window.SP_REACT.createElement(deckyFrontendLib.PanelSection, null,
+                window.SP_REACT.createElement(deckyFrontendLib.PanelSectionRow, null,
+                    window.SP_REACT.createElement(deckyFrontendLib.ButtonItem, { layout: "below", onClick: () => setShowEmpty((v) => !v) }, showEmpty
+                        ? Translator.translate("hide.empty.folders")
+                        : Translator.translate("show.empty.folders", { "count": empty.length }))),
+                showEmpty && empty.map(renderRow)))));
     }
 
     function RenderSyncLogPage$1() {
