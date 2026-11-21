@@ -437,6 +437,26 @@ class RcloneSetupManager:
             source_order.get(r["source"], 9),
             -(r["lastModified"] or 0),
         ))
+
+        # Drop ancestor folders when a more specific candidate lives inside
+        # them. E.g. Documents / Documents/My Games / Documents/My Games/<Game>
+        # all surface separately, but only the deepest (best-matching) folder
+        # is useful — the parents just duplicate it. Keep only candidates that
+        # are not an ancestor of any other candidate, so nested chains collapse
+        # to the single most specific folder while genuinely different save
+        # locations (e.g. AppData and Documents) are both preserved.
+        all_parts = [(r, Path(r["path"]).parts) for r in results]
+        deduped = []
+        for r, rp in all_parts:
+            if any(
+                len(op) > len(rp) and op[:len(rp)] == rp
+                for _, op in all_parts
+                if op != rp
+            ):
+                continue
+            deduped.append(r)
+        results = deduped
+
         return results[:40]
 
     def _steam_steamapps_dirs(self):
