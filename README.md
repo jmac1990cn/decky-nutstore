@@ -71,7 +71,7 @@
 
 **模式二 · 存档探测**（仿游戏管家）：
 
-1. 插件按游戏名（含去副标题、去空格、下划线等变体）自动在以下位置探测：Steam 云存档、Proton 前缀内的 `Documents` / `My Games` / `Saved Games` / `AppData\Roaming|Local|LocalLow`、游戏前缀的 `save|saves|SaveData…` 子目录、以及主目录下的 `.local/share` / `.config` / `Documents`。
+1. **仅在该游戏自身的文件夹内**探测：范围限定在 `compatdata/<游戏ID>/pfx/drive_c/users/steamuser/`（不会扫 Steam 云、主目录或其他游戏）。插件按游戏名（含去副标题、去空格、下划线等变体）在该用户目录下查找：`Documents` / `Documents\My Games` / `Saved Games` / `AppData\Roaming|Local|LocalLow` 中的同名目录，以及 `save|saves|SaveData…` 等常见存档目录和用户目录根下的同名目录。
 2. 只列出**实际存在**的候选目录，按来源优先级 + 最近修改时间排序，并显示来源、文件数、修改日期，便于判断哪个是真存档。
 3. 点选某个候选即按递归方式加入同步；若都没探测到，可一键切回「自选文件夹」手动选择。
 
@@ -123,5 +123,5 @@ pnpm build        # 输出到 dist/
 
 - 入口「打开存档目录」更名为「**打开游戏文件夹**」。
 - 点击游戏后拆分为两种模式：**自选文件夹**（原逐级浏览流程）与 **存档探测**（新增）。
-- **存档探测**：仿游戏管家的存档查找，按游戏名（含去副标题/空格/下划线等变体）自动探测 Steam 云存档、Proton 前缀内 `Documents`/`My Games`/`Saved Games`/`AppData`、前缀 `save` 子目录、主目录 `.local/share`/`.config` 等位置的存档文件夹；只列出实际存在的目录，按来源优先级 + 最近修改时间排序，并显示来源、文件数、修改日期。
+- **存档探测**：仿游戏管家的存档查找，**仅在该游戏自身的** `compatdata/<游戏ID>/pfx/drive_c/users/steamuser/` 内，按游戏名（含去副标题/空格/下划线等变体）探测 `Documents`/`My Games`/`Saved Games`/`AppData` 同名目录及 `save`/`saves` 等常见存档目录；不扫 Steam 云、主目录或其他游戏。只列出实际存在的目录，按来源优先级 + 最近修改时间排序，并显示来源、文件数、修改日期。
 - 兼容 SteamOS 原生 Steam 默认路径 `~/.local/share/Steam/steamapps/`（此前只扫了 `~/.steam/steam/` 与 Flatpak 路径，可能漏掉游戏）。

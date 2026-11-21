@@ -16,10 +16,9 @@ type SaveDir = {
 };
 
 const SOURCE_KEYS: Record<string, string> = {
-  steam_cloud: "source.steam.cloud",
   proton_user: "source.proton.user",
-  prefix: "source.prefix",
-  linux_home: "source.linux.home",
+  generic: "source.generic",
+  user_root: "source.user.root",
 };
 
 function formatTime(ms: number | null): string {

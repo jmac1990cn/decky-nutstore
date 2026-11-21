@@ -281,19 +281,18 @@ class RcloneSetupManager:
         return entries, (int(last * 1000) if last else None)
 
     async def detect_save_dirs(self, appid: str, name: str, prefix_path: str):
-        """Probe likely save folders for a game, Game-Launcher style.
+        """Detect likely save folders *only* inside the selected game's prefix.
 
-        Given a game's name / appid / Proton prefix, looks for save folders in
-        the places games typically use on a Steam Deck, in priority order:
+        On Steam Deck a Windows game's saves live under its Proton prefix at
+        ``compatdata/<appid>/pfx/drive_c/users/steamuser/``. We do NOT scan
+        Steam cloud, the Linux home, or other game prefixes — results are
+        restricted to this one game's prefix so nothing unrelated is offered.
 
-          1. Steam cloud      <steam>/userdata/<steamid>/<appid>[/remote]
-          2. Proton prefix    compatdata/<appid>/pfx/drive_c/users/<user>/
-                              (Documents, Documents/My Games, Saved Games,
-                               AppData/Roaming, AppData/Local, AppData/LocalLow)
-                              each combined with a name variant
-          3. Prefix root      common save sub-folders (save, saves, SaveData…)
-          4. Linux home       ~/.local/share, ~/.config, ~/Documents,
-                              ~/Saved Games, combined with a name variant
+        Inside that user folder we look in the usual Windows save locations
+        (Documents, Documents/My Games, Saved Games, AppData/{Roaming,Local,
+        LocalLow}) combined with variants of the game name, plus generic save
+        sub-folders (save, saves, SaveData…) and name-named folders directly
+        under the user folder.
 
         Only directories that actually exist are returned. Each result carries
         a ``source`` (for UI grouping), ``exists``, ``entries`` (file count) and
@@ -302,15 +301,13 @@ class RcloneSetupManager:
         results = []
         seen = set()
         source_order = {
-            "steam_cloud": 0,
-            "proton_user": 1,
-            "prefix": 2,
-            "linux_home": 3,
+            "proton_user": 0,
+            "generic": 1,
+            "user_root": 2,
         }
         name_variants = self._name_variants(name)
-        appid = str(appid or "").strip()
 
-        def push(path: Path, source: str, force: bool = False):
+        def push(path: Path, source: str):
             if not path:
                 return
             try:
@@ -320,74 +317,64 @@ class RcloneSetupManager:
             key = norm.lower().rstrip("/")
             if not key or key in seen:
                 return
-            is_dir = path.is_dir()
-            if not is_dir and not force:
+            if not path.is_dir():
                 return
             seen.add(key)
-            entries, last = self._describe_dir(path) if is_dir else (0, None)
+            entries, last = self._describe_dir(path)
             results.append({
                 "path": norm,
                 "source": source,
-                "exists": is_dir,
+                "exists": True,
                 "entries": entries,
                 "lastModified": last,
             })
 
-        # 1) Steam cloud saves.
-        if appid:
-            for steamapps in self._steam_steamapps_dirs():
-                userdata = steamapps.parent / "userdata"
-                if not userdata.is_dir():
-                    continue
-                try:
-                    for sid in userdata.iterdir():
-                        if not sid.is_dir() or not sid.name.isdigit():
-                            continue
-                        base = sid / appid
-                        push(base, "steam_cloud")
-                        push(base / "remote", "steam_cloud")
-                except Exception:
-                    pass
+        if not prefix_path:
+            return results
 
-        # 2) + 3) Inside the game's Proton prefix.
-        if prefix_path:
-            prefix = Path(prefix_path)
-            users_root = prefix / "pfx" / "drive_c" / "users"
-            user_dirs = []
-            if users_root.is_dir():
-                try:
-                    user_dirs = [u for u in users_root.iterdir() if u.is_dir()]
-                except Exception:
-                    user_dirs = []
-            proton_subdirs = [
-                "Documents",
-                os.path.join("Documents", "My Games"),
-                "Saved Games",
-                os.path.join("AppData", "Roaming"),
-                os.path.join("AppData", "Local"),
-                os.path.join("AppData", "LocalLow"),
-            ]
-            for user_dir in user_dirs:
-                for sub in proton_subdirs:
-                    base = user_dir / sub
-                    for variant in name_variants:
-                        push(base / variant, "proton_user")
-            for sub in (
-                "save", "saves", "SaveData", "SaveGames", "savegame",
-                "saved", "Saved Games", "Profile", "profiles",
-            ):
-                push(prefix / sub, "prefix")
+        prefix = Path(prefix_path)
+        users_root = prefix / "pfx" / "drive_c" / "users"
 
-        # 4) Native Linux home locations.
-        home = Path.home()
-        for base, source in (
-            (home / ".local" / "share", "linux_home"),
-            (home / ".config", "linux_home"),
-            (home / "Documents", "linux_home"),
-            (home / "Saved Games", "linux_home"),
-        ):
+        # Steam Deck's Proton prefix uses "steamuser"; prefer it, but fall back
+        # to any user folder present (some prefixes keep a different name).
+        user_dirs: list = []
+        steamuser = users_root / "steamuser"
+        if steamuser.is_dir():
+            user_dirs.append(steamuser)
+        if users_root.is_dir():
+            try:
+                for u in users_root.iterdir():
+                    if u.is_dir() and u != steamuser:
+                        user_dirs.append(u)
+            except Exception:
+                pass
+
+        # Windows-style save locations, combined with game-name variants.
+        proton_subdirs = [
+            "Documents",
+            os.path.join("Documents", "My Games"),
+            "Saved Games",
+            os.path.join("AppData", "Roaming"),
+            os.path.join("AppData", "Local"),
+            os.path.join("AppData", "LocalLow"),
+        ]
+        for user_dir in user_dirs:
+            for sub in proton_subdirs:
+                base = user_dir / sub
+                for variant in name_variants:
+                    push(base / variant, "proton_user")
+
+        # Generic save folder names and game-named folders, directly under the
+        # user folder (covers games that write straight into the profile root).
+        generic_names = (
+            "save", "saves", "SaveData", "SaveGames", "savegame",
+            "saved", "Saved Games", "Profile", "profiles",
+        )
+        for user_dir in user_dirs:
+            for sub in generic_names:
+                push(user_dir / sub, "generic")
             for variant in name_variants:
-                push(base / variant, source)
+                push(user_dir / variant, "user_root")
 
         results.sort(key=lambda r: (
             source_order.get(r["source"], 9),
